@@ -1,0 +1,255 @@
+import { useEffect, useState } from 'react'
+import type { ChangeEvent } from 'react'
+import type { AppSettings, ProviderConfig, ProviderId } from '@shared/types'
+
+export interface SettingsPanelProps {
+  settings: AppSettings
+  onChange: (settings: AppSettings) => void
+  onClose: () => void
+}
+
+const PROVIDER_OPTIONS: { id: ProviderId; label: string }[] = [
+  { id: 'openai', label: 'OpenAI' },
+  { id: 'claude', label: 'Claude' },
+  { id: 'gemini', label: 'Gemini' },
+  { id: 'openrouter', label: 'OpenRouter' }
+]
+
+const THEME_OPTIONS: AppSettings['theme'][] = ['light', 'dark', 'system']
+
+/**
+ * A curated starting list per provider -- not exhaustive, and provider catalogs (especially
+ * OpenRouter's, which aggregates hundreds of models) change faster than this list can track.
+ * "Custom..." always stays available so a newer/uncommon model id can still be typed in.
+ */
+const PROVIDER_MODELS: Record<ProviderId, string[]> = {
+  openai: ['gpt-5.1', 'gpt-5.1-mini', 'gpt-5', 'gpt-4.1', 'gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'],
+  claude: ['claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5-20251001', 'claude-opus-4-1'],
+  gemini: ['gemini-3-pro', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+  openrouter: [
+    'openai/gpt-5.1',
+    'anthropic/claude-sonnet-5',
+    'google/gemini-3-pro',
+    'meta-llama/llama-4-maverick',
+    'deepseek/deepseek-v3.2',
+    'mistralai/mistral-large'
+  ]
+}
+
+const CUSTOM_MODEL_VALUE = '__custom__'
+
+function emptyProviderConfig(providerId: ProviderId): ProviderConfig {
+  return { providerId, apiKey: '', baseUrl: '', model: '', temperature: undefined }
+}
+
+/** Immutably updates the ProviderConfig entry for the currently active provider. */
+function withActiveProviderConfig(
+  settings: AppSettings,
+  patch: Partial<ProviderConfig>
+): AppSettings {
+  const current =
+    settings.providers[settings.activeProviderId] ?? emptyProviderConfig(settings.activeProviderId)
+  return {
+    ...settings,
+    providers: {
+      ...settings.providers,
+      [settings.activeProviderId]: { ...current, ...patch }
+    }
+  }
+}
+
+export function SettingsPanel({ settings, onChange, onClose }: SettingsPanelProps): JSX.Element {
+  const activeConfig = settings.providers[settings.activeProviderId] ?? emptyProviderConfig(
+    settings.activeProviderId
+  )
+
+  const knownModels = PROVIDER_MODELS[settings.activeProviderId]
+  const isStoredCustomModel = activeConfig.model !== '' && !knownModels.includes(activeConfig.model)
+
+  // Local "the user just picked Custom..." toggle, separate from whether the stored model
+  // string happens to match a curated option -- without it, picking Custom... and clearing
+  // the model to '' would immediately collapse back to the placeholder on the next render.
+  const [manualCustomMode, setManualCustomMode] = useState(isStoredCustomModel)
+
+  useEffect(() => {
+    setManualCustomMode(isStoredCustomModel)
+    // Only re-derive when switching provider -- switching provider should always re-evaluate
+    // from that provider's own stored model, not carry over the previous provider's toggle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.activeProviderId])
+
+  const showCustomModelInput = manualCustomMode || isStoredCustomModel
+  const modelSelectValue = showCustomModelInput ? CUSTOM_MODEL_VALUE : activeConfig.model
+
+  const handleProviderChange = (event: ChangeEvent<HTMLSelectElement>): void => {
+    onChange({ ...settings, activeProviderId: event.target.value as ProviderId })
+  }
+
+  const handleApiKeyChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    onChange(withActiveProviderConfig(settings, { apiKey: event.target.value }))
+  }
+
+  const handleBaseUrlChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    onChange(withActiveProviderConfig(settings, { baseUrl: event.target.value }))
+  }
+
+  const handleModelSelectChange = (event: ChangeEvent<HTMLSelectElement>): void => {
+    const value = event.target.value
+    if (value === CUSTOM_MODEL_VALUE) {
+      setManualCustomMode(true)
+      return
+    }
+    setManualCustomMode(false)
+    onChange(withActiveProviderConfig(settings, { model: value }))
+  }
+
+  const handleCustomModelChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    onChange(withActiveProviderConfig(settings, { model: event.target.value }))
+  }
+
+  const handleTemperatureChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    const raw = event.target.value
+    onChange(
+      withActiveProviderConfig(settings, { temperature: raw === '' ? undefined : Number(raw) })
+    )
+  }
+
+  const handleThemeChange = (event: ChangeEvent<HTMLSelectElement>): void => {
+    onChange({ ...settings, theme: event.target.value as AppSettings['theme'] })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-md rounded-lg bg-surface p-5 shadow-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-white">Settings</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close settings"
+            className="rounded p-1 text-gray-400 hover:text-white"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-4 w-4"
+            >
+              <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-gray-300">Provider</span>
+            <select
+              value={settings.activeProviderId}
+              onChange={handleProviderChange}
+              className="w-full rounded-md bg-surface-muted px-2 py-1.5 text-sm text-white outline-none ring-1 ring-transparent focus:ring-accent"
+            >
+              {PROVIDER_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-gray-300">API key</span>
+            <input
+              type="password"
+              value={activeConfig.apiKey}
+              onChange={handleApiKeyChange}
+              autoComplete="off"
+              className="w-full rounded-md bg-surface-muted px-2 py-1.5 text-sm text-white outline-none ring-1 ring-transparent focus:ring-accent"
+            />
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-gray-300">Base URL (optional)</span>
+            <input
+              type="text"
+              value={activeConfig.baseUrl ?? ''}
+              onChange={handleBaseUrlChange}
+              placeholder="https://api.example.com/v1"
+              className="w-full rounded-md bg-surface-muted px-2 py-1.5 text-sm text-white outline-none ring-1 ring-transparent focus:ring-accent"
+            />
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-gray-300">Model</span>
+            <select
+              value={modelSelectValue}
+              onChange={handleModelSelectChange}
+              className="w-full rounded-md bg-surface-muted px-2 py-1.5 text-sm text-white outline-none ring-1 ring-transparent focus:ring-accent"
+            >
+              <option value="" disabled>
+                Select a model…
+              </option>
+              {knownModels.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+              <option value={CUSTOM_MODEL_VALUE}>Custom…</option>
+            </select>
+          </label>
+
+          {showCustomModelInput && (
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-gray-300">Custom model ID</span>
+              <input
+                type="text"
+                value={activeConfig.model}
+                onChange={handleCustomModelChange}
+                placeholder="e.g. some-provider/some-model"
+                autoFocus
+                className="w-full rounded-md bg-surface-muted px-2 py-1.5 text-sm text-white outline-none ring-1 ring-transparent focus:ring-accent"
+              />
+            </label>
+          )}
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-gray-300">Temperature</span>
+            <input
+              type="number"
+              step={0.1}
+              min={0}
+              max={2}
+              value={activeConfig.temperature ?? ''}
+              onChange={handleTemperatureChange}
+              className="w-full rounded-md bg-surface-muted px-2 py-1.5 text-sm text-white outline-none ring-1 ring-transparent focus:ring-accent"
+            />
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-gray-300">Theme</span>
+            <select
+              value={settings.theme}
+              onChange={handleThemeChange}
+              className="w-full rounded-md bg-surface-muted px-2 py-1.5 text-sm text-white outline-none ring-1 ring-transparent focus:ring-accent"
+            >
+              {THEME_OPTIONS.map((theme) => (
+                <option key={theme} value={theme}>
+                  {theme.charAt(0).toUpperCase() + theme.slice(1)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-5 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md bg-accent/90 px-4 py-1.5 text-sm font-medium text-white hover:bg-accent"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

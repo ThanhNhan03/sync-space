@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-surface: 17 18 23;
+  --color-surface-muted: 27 29 36;
+  --color-accent: 99 102 241;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}

@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["src/shared/*"],
+      "@engine/*": ["src/engine/*"],
+      "@agent/*": ["src/agent/*"],
+      "@tools/*": ["src/tools/*"],
+      "@providers/*": ["src/providers/*"],
+      "@database/*": ["src/database/*"],
+      "@ipc/*": ["src/ipc/*"]
+    }
+  },
+  "include": [
+    "src/main/**/*",
+    "src/preload/**/*",
+    "src/shared/**/*",
+    "src/engine/**/*",
+    "src/agent/**/*",
+    "src/tools/**/*",
+    "src/providers/**/*",
+    "src/database/**/*",
+    "src/ipc/**/*"
+  ]
+}

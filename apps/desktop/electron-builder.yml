@@ -1,0 +1,19 @@
+appId: com.syncspace.app
+productName: SyncSpace
+directories:
+  buildResources: build
+  output: release
+files:
+  - out/**/*
+  - package.json
+asarUnpack:
+  - '**/*.node'
+win:
+  target: nsis
+mac:
+  target: dmg
+  category: public.app-category.productivity
+linux:
+  target: AppImage
+  category: Office
+npmRebuild: true
