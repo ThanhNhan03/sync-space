@@ -21,6 +21,7 @@
       "@engine/*": ["src/engine/*"],
       "@agent/*": ["src/agent/*"],
       "@tools/*": ["src/tools/*"],
+      "@mcp/*": ["src/mcp/*"],
       "@providers/*": ["src/providers/*"],
       "@database/*": ["src/database/*"],
       "@ipc/*": ["src/ipc/*"]
@@ -33,6 +34,7 @@
     "src/engine/**/*",
     "src/agent/**/*",
     "src/tools/**/*",
+    "src/mcp/**/*",
     "src/providers/**/*",
     "src/database/**/*",
     "src/ipc/**/*"

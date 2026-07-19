@@ -115,6 +115,11 @@ app.whenReady().then(() => {
 
   registerIpcHandlers(engine, () => mainWindow)
 
+  // Tear down MCP child processes / connections cleanly on quit.
+  app.on('before-quit', () => {
+    void engine.shutdownMcp()
+  })
+
   mainWindow = createWindow()
 
   app.on('activate', () => {

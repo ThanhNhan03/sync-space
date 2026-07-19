@@ -1,12 +1,24 @@
 import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 
-import type { AgentStreamEvent, AppSettings, ChatMessage, MessageAttachment, SessionSummary, Workspace } from '@shared/types'
+import type {
+  AgentStreamEvent,
+  AppSettings,
+  ChatMessage,
+  McpPreset,
+  McpServerStatus,
+  MessageAttachment,
+  SessionSummary,
+  Workspace
+} from '@shared/types'
 import type { SettingsRepository } from '@database/repositories'
 import { allTools } from '@tools/index'
 import { ToolManager } from '@tools/ToolManager'
 import { createProvider } from '@providers/registry'
 import { AgentRunner } from '@agent/AgentRunner'
+import { McpManager } from '@mcp/McpManager'
+import { createMcpTools } from '@mcp/mcpTools'
+import { MCP_PRESETS } from '@mcp/presets'
 
 import { SessionManager, type CreateSessionInput } from './SessionManager'
 
@@ -32,11 +44,23 @@ export class SyncSpaceEngine {
   private readonly agentRunner = new AgentRunner(this.toolManager)
   private readonly cancelledSessions = new Set<string>()
   private readonly activeRuns = new Set<string>()
+  private readonly mcpManager: McpManager
+  private mcpStatusListener: ((status: McpServerStatus[]) => void) | null = null
 
   constructor(
     private readonly sessionManager: SessionManager,
     private readonly settingsRepo: SettingsRepository
-  ) {}
+  ) {
+    // Whenever MCP connections or discovered tools change, republish the tool set into the
+    // ToolManager (so the agent sees current tools) and notify the UI of new server status.
+    this.mcpManager = new McpManager(() => {
+      this.toolManager.setMcpTools(createMcpTools(this.mcpManager))
+      this.mcpStatusListener?.(this.mcpManager.getServerStatus())
+    })
+    // Connect configured servers at startup. Fire-and-forget: a slow/broken server must never
+    // block engine construction, and per-server failures are already logged by the manager.
+    void this.mcpManager.initializeServers(this.getSettings().mcpServers ?? [])
+  }
 
   getSettings(): AppSettings {
     return this.settingsRepo.get() ?? DEFAULT_SETTINGS
@@ -44,7 +68,27 @@ export class SyncSpaceEngine {
 
   updateSettings(settings: AppSettings): AppSettings {
     this.settingsRepo.set(settings)
+    // Reconcile MCP connections with the new config. initializeServers fingerprints the
+    // config and no-ops when the MCP portion is unchanged, so provider-only edits are cheap.
+    void this.mcpManager.initializeServers(settings.mcpServers ?? [])
     return settings
+  }
+
+  getMcpStatus(): McpServerStatus[] {
+    return this.mcpManager.getServerStatus()
+  }
+
+  getMcpPresets(): McpPreset[] {
+    return MCP_PRESETS
+  }
+
+  /** Registers the single listener the IPC layer uses to push MCP status to the renderer. */
+  onMcpStatusChange(listener: (status: McpServerStatus[]) => void): void {
+    this.mcpStatusListener = listener
+  }
+
+  async shutdownMcp(): Promise<void> {
+    await this.mcpManager.shutdown()
   }
 
   listWorkspaces(): Workspace[] {

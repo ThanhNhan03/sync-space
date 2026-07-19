@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 import { IPC, IPC_PUSH } from '../shared/ipc'
 import type { IpcRequestMap, IpcResponseMap } from '../shared/ipc'
-import type { AgentStreamEvent } from '../shared/types'
+import type { AgentStreamEvent, McpServerStatus } from '../shared/types'
 
 function invoke<K extends keyof IpcRequestMap>(
   channel: K,
@@ -38,11 +38,22 @@ const api = {
   updateSettings: (settings: IpcRequestMap[typeof IPC.SETTINGS_UPDATE]['settings']) =>
     invoke(IPC.SETTINGS_UPDATE, { settings }),
 
+  getMcpStatus: () => invoke(IPC.MCP_STATUS),
+
+  getMcpPresets: () => invoke(IPC.MCP_PRESETS),
+
   /** Subscribes to Agent Runner stream events; returns an unsubscribe function. */
   onStreamEvent(callback: (event: AgentStreamEvent) => void): () => void {
     const listener = (_event: unknown, streamEvent: AgentStreamEvent): void => callback(streamEvent)
     ipcRenderer.on(IPC_PUSH.CHAT_STREAM_EVENT, listener)
     return () => ipcRenderer.removeListener(IPC_PUSH.CHAT_STREAM_EVENT, listener)
+  },
+
+  /** Subscribes to live MCP server status updates; returns an unsubscribe function. */
+  onMcpStatusChanged(callback: (status: McpServerStatus[]) => void): () => void {
+    const listener = (_event: unknown, status: McpServerStatus[]): void => callback(status)
+    ipcRenderer.on(IPC_PUSH.MCP_STATUS_CHANGED, listener)
+    return () => ipcRenderer.removeListener(IPC_PUSH.MCP_STATUS_CHANGED, listener)
   }
 }
 

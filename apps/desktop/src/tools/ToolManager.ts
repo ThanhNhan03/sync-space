@@ -8,6 +8,12 @@ import type { Tool, ToolContext, ToolDefinition } from './Tool'
  */
 export class ToolManager {
   private readonly tools = new Map<string, Tool>()
+  /**
+   * MCP-sourced tools, kept separate from the built-ins because they come and go at runtime
+   * as servers connect/disconnect. Replaced wholesale via setMcpTools() on every MCP refresh;
+   * built-in tools always take precedence on a name collision.
+   */
+  private mcpTools = new Map<string, Tool>()
 
   constructor(tools: Tool[]) {
     for (const tool of tools) {
@@ -15,8 +21,21 @@ export class ToolManager {
     }
   }
 
+  /** Replace the current set of MCP-provided tools (called whenever MCP discovery changes). */
+  setMcpTools(tools: Tool[]): void {
+    const next = new Map<string, Tool>()
+    for (const tool of tools) {
+      next.set(tool.name, tool)
+    }
+    this.mcpTools = next
+  }
+
   getToolDefinitions(): ToolDefinition[] {
-    return Array.from(this.tools.values()).map((tool) => ({
+    const merged = new Map<string, Tool>(this.mcpTools)
+    for (const [name, tool] of this.tools) {
+      merged.set(name, tool) // built-ins win on collision
+    }
+    return Array.from(merged.values()).map((tool) => ({
       name: tool.name,
       description: tool.description,
       schema: tool.schema
@@ -24,7 +43,7 @@ export class ToolManager {
   }
 
   async execute(request: ToolCallRequest, context: ToolContext): Promise<ToolCallResult> {
-    const tool = this.tools.get(request.name)
+    const tool = this.tools.get(request.name) ?? this.mcpTools.get(request.name)
     if (!tool) {
       return {
         id: request.id,

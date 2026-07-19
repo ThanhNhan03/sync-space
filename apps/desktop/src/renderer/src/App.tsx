@@ -93,6 +93,7 @@ export default function App(): JSX.Element {
       {settingsOpen && s.settings && (
         <SettingsPanel
           settings={s.settings}
+          workspaceRoot={s.workspace?.rootPath}
           onChange={s.onUpdateSettings}
           onClose={() => setSettingsOpen(false)}
         />

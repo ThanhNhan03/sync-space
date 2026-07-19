@@ -52,6 +52,32 @@ describe('ToolManager', () => {
     expect(result.content).toBe('kaboom')
   })
 
+  it('exposes and executes dynamically-registered MCP tools', async () => {
+    const manager = new ToolManager([makeTool()])
+    manager.setMcpTools([
+      makeTool({ name: 'mcp__srv__do', description: 'MCP tool', execute: async () => ({ ok: true, content: 'mcp-ran' }) })
+    ])
+    expect(manager.getToolDefinitions().map((d) => d.name).sort()).toEqual(['echo', 'mcp__srv__do'])
+    const result = await manager.execute({ id: 'c', name: 'mcp__srv__do', arguments: {} }, context)
+    expect(result.content).toBe('mcp-ran')
+  })
+
+  it('lets a built-in tool win over an MCP tool of the same name', async () => {
+    const manager = new ToolManager([makeTool({ name: 'clash', execute: async () => ({ ok: true, content: 'builtin' }) })])
+    manager.setMcpTools([makeTool({ name: 'clash', execute: async () => ({ ok: true, content: 'mcp' }) })])
+    const defs = manager.getToolDefinitions().filter((d) => d.name === 'clash')
+    expect(defs).toHaveLength(1)
+    const result = await manager.execute({ id: 'c', name: 'clash', arguments: {} }, context)
+    expect(result.content).toBe('builtin')
+  })
+
+  it('replaces the full MCP tool set on each setMcpTools call', () => {
+    const manager = new ToolManager([])
+    manager.setMcpTools([makeTool({ name: 'mcp__a' })])
+    manager.setMcpTools([makeTool({ name: 'mcp__b' })])
+    expect(manager.getToolDefinitions().map((d) => d.name)).toEqual(['mcp__b'])
+  })
+
   it('passes the ToolContext through to execute()', async () => {
     let receivedContext: ToolContext | null = null
     const manager = new ToolManager([

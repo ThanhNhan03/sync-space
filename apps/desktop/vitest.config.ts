@@ -8,6 +8,7 @@ export default defineConfig({
       '@engine': resolve(__dirname, 'src/engine'),
       '@agent': resolve(__dirname, 'src/agent'),
       '@tools': resolve(__dirname, 'src/tools'),
+      '@mcp': resolve(__dirname, 'src/mcp'),
       '@providers': resolve(__dirname, 'src/providers'),
       '@database': resolve(__dirname, 'src/database'),
       '@ipc': resolve(__dirname, 'src/ipc')

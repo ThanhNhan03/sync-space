@@ -1,4 +1,13 @@
-import type { AppSettings, ChatMessage, MessageAttachment, ProviderId, SessionSummary, Workspace } from './types'
+import type {
+  AppSettings,
+  ChatMessage,
+  McpPreset,
+  McpServerStatus,
+  MessageAttachment,
+  ProviderId,
+  SessionSummary,
+  Workspace
+} from './types'
 
 /** Renderer -> Main, request/response (invoke/handle). */
 export const IPC = {
@@ -13,12 +22,15 @@ export const IPC = {
   WORKSPACE_LIST: 'workspace:list',
   ATTACHMENT_SELECT: 'attachment:select',
   SETTINGS_GET: 'settings:get',
-  SETTINGS_UPDATE: 'settings:update'
+  SETTINGS_UPDATE: 'settings:update',
+  MCP_STATUS: 'mcp:status',
+  MCP_PRESETS: 'mcp:presets'
 } as const
 
-/** Main -> Renderer, fire-and-forget push channel carrying AgentStreamEvent. */
+/** Main -> Renderer, fire-and-forget push channels. */
 export const IPC_PUSH = {
-  CHAT_STREAM_EVENT: 'chat:stream-event'
+  CHAT_STREAM_EVENT: 'chat:stream-event',
+  MCP_STATUS_CHANGED: 'mcp:status-changed'
 } as const
 
 export interface IpcRequestMap {
@@ -34,6 +46,8 @@ export interface IpcRequestMap {
   [IPC.ATTACHMENT_SELECT]: undefined
   [IPC.SETTINGS_GET]: undefined
   [IPC.SETTINGS_UPDATE]: { settings: AppSettings }
+  [IPC.MCP_STATUS]: undefined
+  [IPC.MCP_PRESETS]: undefined
 }
 
 export interface IpcResponseMap {
@@ -49,6 +63,8 @@ export interface IpcResponseMap {
   [IPC.ATTACHMENT_SELECT]: MessageAttachment[]
   [IPC.SETTINGS_GET]: AppSettings
   [IPC.SETTINGS_UPDATE]: AppSettings
+  [IPC.MCP_STATUS]: McpServerStatus[]
+  [IPC.MCP_PRESETS]: McpPreset[]
 }
 
 export type IpcChannel = keyof IpcRequestMap

@@ -111,4 +111,12 @@ export function registerIpcHandlers(engine: SyncSpaceEngine, getWindow: () => Br
 
   handle(IPC.SETTINGS_GET, () => engine.getSettings())
   handle(IPC.SETTINGS_UPDATE, (req) => engine.updateSettings(req.settings))
+
+  handle(IPC.MCP_STATUS, () => engine.getMcpStatus())
+  handle(IPC.MCP_PRESETS, () => engine.getMcpPresets())
+
+  // Push live MCP server status (connect/fail/tool-count changes) to the renderer.
+  engine.onMcpStatusChange((status) => {
+    getWindow()?.webContents.send(IPC_PUSH.MCP_STATUS_CHANGED, status)
+  })
 }

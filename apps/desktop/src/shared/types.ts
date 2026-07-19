@@ -63,11 +63,68 @@ export interface ProviderConfig {
   temperature?: number
 }
 
+/** Transport used to reach an MCP server. */
+export type McpTransportType = 'stdio' | 'sse' | 'streamable-http'
+
+/**
+ * A user-configured MCP server. Crosses the IPC boundary (the Settings UI edits these),
+ * so it lives in shared types. `env`/`headers` can carry secrets (API tokens) exactly as
+ * provider API keys already do in ProviderConfig -- both are persisted in the same SQLite
+ * settings row, never exposed beyond the preload bridge.
+ */
+export interface McpServerConfig {
+  id: string
+  name: string
+  type: McpTransportType
+  /** stdio: executable to spawn (e.g. "npx"). */
+  command?: string
+  /** stdio: arguments passed to the command. */
+  args?: string[]
+  /** stdio: extra environment variables for the spawned process. */
+  env?: Record<string, string>
+  /** stdio: working directory for the spawned process. */
+  cwd?: string
+  /** sse / streamable-http: server URL. */
+  url?: string
+  /** sse / streamable-http: HTTP headers (auth tokens etc.). */
+  headers?: Record<string, string>
+  enabled: boolean
+}
+
+export type McpConnectionState = 'connecting' | 'connected' | 'failed' | 'disabled'
+
+/** Live status of a configured MCP server, surfaced to the Settings UI. */
+export interface McpServerStatus {
+  id: string
+  name: string
+  connected: boolean
+  status: McpConnectionState
+  toolCount: number
+  /** Last connection/refresh error, if the server is in a failed state. */
+  error?: string
+}
+
+/** A ready-to-use MCP server template the UI offers as a one-click "Add". */
+export interface McpPreset {
+  key: string
+  name: string
+  type: McpTransportType
+  command?: string
+  args?: string[]
+  url?: string
+  /** Env vars the user must fill in before the server will work (e.g. an API token). */
+  requiredEnv?: string[]
+  envDescription?: Record<string, string>
+  description?: string
+}
+
 export interface AppSettings {
   activeProviderId: ProviderId
   providers: Partial<Record<ProviderId, ProviderConfig>>
   theme: 'light' | 'dark' | 'system'
   activeWorkspaceId?: string
+  /** User-configured MCP servers whose tools are exposed to the agent. */
+  mcpServers?: McpServerConfig[]
 }
 
 /**

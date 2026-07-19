@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import type { AppSettings, ProviderConfig, ProviderId } from '@shared/types'
+import type { AppSettings, McpServerConfig, ProviderConfig, ProviderId } from '@shared/types'
+import { McpServersSection } from './McpServersSection'
 
 export interface SettingsPanelProps {
   settings: AppSettings
+  /** Active workspace path, forwarded to MCP presets that scope to the workspace. */
+  workspaceRoot?: string
   onChange: (settings: AppSettings) => void
   onClose: () => void
 }
@@ -58,7 +61,12 @@ function withActiveProviderConfig(
   }
 }
 
-export function SettingsPanel({ settings, onChange, onClose }: SettingsPanelProps): JSX.Element {
+export function SettingsPanel({
+  settings,
+  workspaceRoot,
+  onChange,
+  onClose
+}: SettingsPanelProps): JSX.Element {
   const activeConfig = settings.providers[settings.activeProviderId] ?? emptyProviderConfig(
     settings.activeProviderId
   )
@@ -118,9 +126,13 @@ export function SettingsPanel({ settings, onChange, onClose }: SettingsPanelProp
     onChange({ ...settings, theme: event.target.value as AppSettings['theme'] })
   }
 
+  const handleMcpServersChange = (mcpServers: McpServerConfig[]): void => {
+    onChange({ ...settings, mcpServers })
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-md rounded-lg bg-surface p-5 shadow-xl">
+      <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-lg bg-surface p-5 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-white">Settings</h2>
           <button
@@ -140,7 +152,7 @@ export function SettingsPanel({ settings, onChange, onClose }: SettingsPanelProp
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="-mr-2 flex-1 space-y-4 overflow-y-auto pr-2">
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-gray-300">Provider</span>
             <select
@@ -238,6 +250,12 @@ export function SettingsPanel({ settings, onChange, onClose }: SettingsPanelProp
               ))}
             </select>
           </label>
+
+          <McpServersSection
+            servers={settings.mcpServers ?? []}
+            onChange={handleMcpServersChange}
+            workspaceRoot={workspaceRoot}
+          />
         </div>
 
         <div className="mt-5 flex justify-end">
