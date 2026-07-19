@@ -170,6 +170,90 @@ export interface MemoryEntry {
   updatedAt: number
 }
 
+/**
+ * A user-defined, reusable sub-agent "persona". The orchestrator can delegate a task to one
+ * by name via spawn_subagent; the child then runs with this agent's systemPrompt. Its name +
+ * description are shown to the orchestrator so it knows when to use it.
+ */
+export interface AgentDefinition {
+  id: string
+  /** Short identifier the orchestrator passes to spawn_subagent (e.g. "researcher"). */
+  name: string
+  /** When to use this agent — shown to the orchestrating model. */
+  description: string
+  /** Specialized instructions the child agent runs under. */
+  systemPrompt: string
+  /**
+   * Skill ids (== skill names) this agent may use. When set, only these skills are offered to
+   * the agent; when omitted/empty, the agent inherits all enabled skills (unrestricted).
+   */
+  skillIds?: string[]
+  createdAt: number
+  updatedAt: number
+}
+
+/**
+ * Built-in agent personas available out of the box. Surfaced to the orchestrator (and shown in
+ * the Agents settings tab) until the user customizes their agent list, at which point the edited
+ * list is persisted in AppSettings.agents. Their skillIds are unset, so they inherit all skills.
+ */
+export const DEFAULT_AGENTS: AgentDefinition[] = [
+  {
+    id: 'agent-default-general',
+    name: 'general-purpose',
+    description:
+      'General-purpose agent for multi-step tasks, research, and code changes. Use when no more specialized agent fits.',
+    systemPrompt:
+      'You are a capable general-purpose engineering agent. Work through the task methodically using your tools, verify your results, and return a clear, complete answer.',
+    createdAt: 0,
+    updatedAt: 0
+  },
+  {
+    id: 'agent-default-researcher',
+    name: 'researcher',
+    description:
+      'Investigates a question across the workspace (files, code, git) and reports findings. Read-only — does not modify files.',
+    systemPrompt:
+      'You are a meticulous researcher. Explore the workspace with read/search tools to answer the question, citing concrete file paths and line references. Do NOT modify any files. Return a concise, well-organized findings report.',
+    createdAt: 0,
+    updatedAt: 0
+  },
+  {
+    id: 'agent-default-reviewer',
+    name: 'code-reviewer',
+    description:
+      'Reviews a diff or set of files for bugs, edge cases, and quality issues, and reports actionable findings.',
+    systemPrompt:
+      'You are a senior code reviewer. Examine the relevant changes/files for correctness bugs, edge cases, security issues, and clarity. Report specific, actionable findings with file:line references, most important first. Do not make changes yourself unless explicitly asked.',
+    createdAt: 0,
+    updatedAt: 0
+  },
+  {
+    id: 'agent-default-test-writer',
+    name: 'test-writer',
+    description: 'Writes or extends automated tests for given code, following the project’s existing test style.',
+    systemPrompt:
+      'You are a testing specialist. Study the code under test and the project’s existing test conventions, then write focused, meaningful tests covering the important behaviors and edge cases. Run the tests if a runner is available and report the outcome.',
+    createdAt: 0,
+    updatedAt: 0
+  }
+]
+
+/** Global controls for the subagent feature. */
+export interface SubagentSettings {
+  enabled: boolean
+  /** Maximum subagents running at once across the app. */
+  maxConcurrent: number
+  /** Default per-subagent wall-clock limit when the caller doesn't specify one. */
+  defaultTimeoutSeconds: number
+}
+
+export const DEFAULT_SUBAGENT_SETTINGS: SubagentSettings = {
+  enabled: true,
+  maxConcurrent: 3,
+  defaultTimeoutSeconds: 120
+}
+
 export interface AppSettings {
   activeProviderId: ProviderId
   providers: Partial<Record<ProviderId, ProviderConfig>>
@@ -184,6 +268,10 @@ export interface AppSettings {
    * agent's prompt and new facts are auto-extracted after each run. Defaults to true.
    */
   memoryEnabled?: boolean
+  /** User-defined reusable sub-agent personas the orchestrator can delegate to. */
+  agents?: AgentDefinition[]
+  /** Global subagent controls (enable, concurrency, default timeout). */
+  subagentSettings?: SubagentSettings
 }
 
 /**

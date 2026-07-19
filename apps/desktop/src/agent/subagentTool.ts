@@ -15,6 +15,11 @@ const schema: JsonSchema = {
       type: 'string',
       description: 'Optional description of the desired output format. Omit for free-form text.'
     },
+    agent: {
+      type: 'string',
+      description:
+        "Optional name of a defined agent persona to run this task under (from the Available agents list). Omit for a general-purpose sub-agent."
+    },
     timeout_seconds: {
       type: 'number',
       description: 'Maximum execution time in seconds. Default 120, max 300.'
@@ -45,12 +50,13 @@ export function createSpawnSubagentTool(): Tool {
       }
       const task = typeof args.task === 'string' ? args.task : ''
       const resultFormat = typeof args.result_format === 'string' ? args.result_format : undefined
+      const agent = typeof args.agent === 'string' && args.agent.trim() ? args.agent.trim() : undefined
       const timeoutSeconds =
         typeof args.timeout_seconds === 'number' && Number.isFinite(args.timeout_seconds)
           ? args.timeout_seconds
           : undefined
 
-      const result = await context.spawnSubagent({ task, resultFormat, timeoutSeconds })
+      const result = await context.spawnSubagent({ task, resultFormat, agent, timeoutSeconds })
       return { ok: result.ok, isError: !result.ok, content: result.text }
     }
   }

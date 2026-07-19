@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import type { SubagentRequest } from '@tools/Tool'
 
 import {
+  buildAgentsPromptSection,
   buildSubagentSystemPromptSuffix,
+  filterSkillsForAgent,
   runSubagent,
   MAX_TASK_LENGTH,
   type RunSubagentDeps,
@@ -139,5 +141,45 @@ describe('buildSubagentSystemPromptSuffix', () => {
 
   it('omits the format section when none is given', () => {
     expect(buildSubagentSystemPromptSuffix('t')).not.toContain('Expected output format')
+  })
+
+  it('prepends the agent persona when provided', () => {
+    const suffix = buildSubagentSystemPromptSuffix('t', undefined, 'You are a careful reviewer.')
+    expect(suffix).toContain('## Your role')
+    expect(suffix).toContain('You are a careful reviewer.')
+  })
+})
+
+describe('filterSkillsForAgent', () => {
+  const skills = [{ id: 'pdf' }, { id: 'xlsx' }, { id: 'commit' }]
+
+  it('returns all skills when the agent has no explicit skill list', () => {
+    expect(filterSkillsForAgent(skills, undefined)).toBe(skills)
+    expect(filterSkillsForAgent(skills, [])).toBe(skills)
+  })
+
+  it('restricts to the listed skill ids when set', () => {
+    expect(filterSkillsForAgent(skills, ['pdf', 'commit']).map((s) => s.id)).toEqual(['pdf', 'commit'])
+  })
+
+  it('ignores ids that do not match any skill', () => {
+    expect(filterSkillsForAgent(skills, ['nope']).map((s) => s.id)).toEqual([])
+  })
+})
+
+describe('buildAgentsPromptSection', () => {
+  it('returns "" when there are no agents', () => {
+    expect(buildAgentsPromptSection([])).toBe('')
+  })
+
+  it('lists agents and explains delegation via spawn_subagent', () => {
+    const section = buildAgentsPromptSection([
+      { name: 'researcher', description: 'Investigates topics.' },
+      { name: 'reviewer', description: 'Reviews diffs.' }
+    ])
+    expect(section).toContain('## Available agents')
+    expect(section).toContain('spawn_subagent')
+    expect(section).toContain('- researcher: Investigates topics.')
+    expect(section).toContain('- reviewer: Reviews diffs.')
   })
 })

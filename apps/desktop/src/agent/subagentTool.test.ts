@@ -31,6 +31,13 @@ describe('createSpawnSubagentTool', () => {
     expect(result).toEqual({ ok: true, isError: false, content: 'the answer' })
   })
 
+  it('forwards a named agent persona through to spawnSubagent', async () => {
+    const spawnSubagent = vi.fn(async (): Promise<SubagentResult> => ({ ok: true, text: 'ok' }))
+    const tool = createSpawnSubagentTool()
+    await tool.execute({ task: 't', agent: 'researcher' }, { workspaceRoot: '/ws', spawnSubagent })
+    expect(spawnSubagent).toHaveBeenCalledWith(expect.objectContaining({ agent: 'researcher' }))
+  })
+
   it('maps a failed subagent result to an isError tool result', async () => {
     const spawnSubagent = vi.fn(async (): Promise<SubagentResult> => ({ ok: false, text: 'timed out' }))
     const tool = createSpawnSubagentTool()

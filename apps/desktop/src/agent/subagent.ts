@@ -17,8 +17,8 @@ export interface SubagentProgress {
 export interface RunChildInput {
   task: string
   resultFormat?: string
-  /** System-prompt suffix that frames the child as a focused sub-agent. */
-  systemPromptSuffix: string
+  /** Name of the agent persona requested for this task, if any (resolved by the runner). */
+  agent?: string
 }
 
 export interface RunChildControl {
@@ -40,22 +40,66 @@ export interface RunSubagentDeps {
   generateId: () => string
 }
 
-/** Frame a child run as a focused sub-agent that returns only the result. */
-export function buildSubagentSystemPromptSuffix(task: string, resultFormat?: string): string {
-  const parts = [
-    '',
-    '',
+/**
+ * Frame a child run as a focused sub-agent that returns only the result. `agentInstructions`,
+ * when given, are the persona of a user-defined agent and are placed before the task framing.
+ */
+export function buildSubagentSystemPromptSuffix(
+  task: string,
+  resultFormat?: string,
+  agentInstructions?: string
+): string {
+  const parts = ['', '']
+  if (agentInstructions && agentInstructions.trim()) {
+    parts.push('## Your role', agentInstructions.trim(), '')
+  }
+  parts.push(
     '## Sub-agent task',
     'You are running as a focused sub-agent with an isolated context — you cannot see the parent',
     "conversation, so rely only on the task below and your tools. Complete it, then return ONLY",
     'the result as your final message: no preamble, no questions, no commentary beyond the result.',
     '',
     task
-  ]
+  )
   if (resultFormat) {
     parts.push('', '### Expected output format', resultFormat)
   }
   return parts.join('\n')
+}
+
+/**
+ * Restrict a set of skills to those an agent is allowed to use. When the agent has no explicit
+ * skill list (undefined/empty), it inherits all skills; otherwise only the listed ids pass.
+ */
+export function filterSkillsForAgent<T extends { id: string }>(
+  skills: T[],
+  skillIds: string[] | undefined
+): T[] {
+  if (!skillIds || skillIds.length === 0) {
+    return skills
+  }
+  const allowed = new Set(skillIds)
+  return skills.filter((skill) => allowed.has(skill.id))
+}
+
+/**
+ * Build the "Available agents" section injected into the orchestrator's prompt, listing the
+ * user-defined agent personas it can delegate to via spawn_subagent. Returns '' when none.
+ */
+export function buildAgentsPromptSection(agents: Array<{ name: string; description: string }>): string {
+  if (agents.length === 0) {
+    return ''
+  }
+  const lines = agents.map((agent) => `- ${agent.name}: ${agent.description}`)
+  return `
+
+## Available agents
+
+You can delegate a focused sub-task to one of these specialized agents by calling the
+\`spawn_subagent\` tool with its name in the \`agent\` parameter. Pick the agent whose
+description best fits the sub-task; omit \`agent\` for a general-purpose sub-agent.
+
+${lines.join('\n')}`
 }
 
 /**
@@ -105,7 +149,7 @@ export async function runSubagent(
     }
 
     const text = await deps.runChild(
-      { task, resultFormat: request.resultFormat, systemPromptSuffix: buildSubagentSystemPromptSuffix(task, request.resultFormat) },
+      { task, resultFormat: request.resultFormat, agent: request.agent },
       control
     )
 

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 
 import type {
+  AgentDefinition,
   AgentStreamEvent,
   AppSettings,
   ChatMessage,
@@ -11,8 +12,10 @@ import type {
   MessageAttachment,
   SessionSummary,
   SkillInfo,
+  SubagentSettings,
   Workspace
 } from '@shared/types'
+import { DEFAULT_AGENTS, DEFAULT_SUBAGENT_SETTINGS } from '@shared/types'
 import type { SettingsRepository, MemoriesRepository } from '@database/repositories'
 import { allTools } from '@tools/index'
 import { ToolManager } from '@tools/ToolManager'
@@ -21,8 +24,9 @@ import { AgentRunner } from '@agent/AgentRunner'
 import { createSpawnSubagentTool, SPAWN_SUBAGENT_TOOL_NAME } from '@agent/subagentTool'
 import {
   runSubagent,
-  MAX_CONCURRENT_SUBAGENTS,
-  DEFAULT_SUBAGENT_TIMEOUT_MS,
+  buildSubagentSystemPromptSuffix,
+  buildAgentsPromptSection,
+  filterSkillsForAgent,
   MAX_SUBAGENT_TIMEOUT_MS
 } from '@agent/subagent'
 import type { SubagentRequest, SubagentResult } from '@tools/Tool'
@@ -30,6 +34,7 @@ import { McpManager } from '@mcp/McpManager'
 import { createMcpTools } from '@mcp/mcpTools'
 import { MCP_PRESETS } from '@mcp/presets'
 import { SkillsManager } from '@skills/SkillsManager'
+import type { DiscoveredSkill } from '@skills/SkillsManager'
 import { createUseSkillTool } from '@skills/useSkillTool'
 import { buildSkillsPromptSection } from '@skills/skillsPrompt'
 import { MemoryManager } from '@memory/MemoryManager'
@@ -167,6 +172,31 @@ export class SyncSpaceEngine {
     return this.getSettings().memoryEnabled !== false
   }
 
+  /** Subagent controls, merged over defaults and clamped to safe bounds. */
+  private getSubagentSettings(): SubagentSettings {
+    const stored = this.getSettings().subagentSettings
+    const merged = { ...DEFAULT_SUBAGENT_SETTINGS, ...stored }
+    return {
+      enabled: merged.enabled,
+      maxConcurrent: Math.min(Math.max(1, Math.floor(merged.maxConcurrent)), 8),
+      defaultTimeoutSeconds: Math.min(
+        Math.max(10, Math.floor(merged.defaultTimeoutSeconds)),
+        MAX_SUBAGENT_TIMEOUT_MS / 1000
+      )
+    }
+  }
+
+  /** Configured agents, or the built-in defaults until the user customizes their agent list. */
+  private getAgents(): AgentDefinition[] {
+    return this.getSettings().agents ?? DEFAULT_AGENTS
+  }
+
+  /** Skills discovered for a workspace with the user's disabled ones removed. */
+  private getEnabledSkills(workspaceRoot: string): DiscoveredSkill[] {
+    const disabled = new Set(this.getSettings().disabledSkillIds ?? [])
+    return this.skillsManager.discover(workspaceRoot).filter((skill) => !disabled.has(skill.id))
+  }
+
   listMemories(workspaceRoot?: string): MemoryEntry[] {
     return this.memoryManager.list(workspaceRoot)
   }
@@ -278,14 +308,19 @@ export class SyncSpaceEngine {
 
     // Progressive disclosure: inject only enabled skills' name+description into the system
     // prompt; the model loads full bodies on demand via the use_skill tool.
-    const disabledSkills = new Set(settings.disabledSkillIds ?? [])
-    const enabledSkills = this.skillsManager
-      .discover(workspace.rootPath)
-      .filter((skill) => !disabledSkills.has(skill.id))
+    const enabledSkills = this.getEnabledSkills(workspace.rootPath)
     const skillsSection = buildSkillsPromptSection(enabledSkills)
     // Inject memories relevant to what the user just asked (no-op when memory is disabled).
     const memorySection = this.memoryManager.getPromptSection(workspace.rootPath, params.content)
-    const systemPromptSuffix = `${skillsSection}${memorySection}`
+
+    // Subagent config + user-defined agent personas the orchestrator can delegate to.
+    const subagentSettings = this.getSubagentSettings()
+    const agents = this.getAgents()
+    const agentsSection =
+      subagentSettings.enabled && agents.length > 0
+        ? buildAgentsPromptSection(agents.map((a) => ({ name: a.name, description: a.description })))
+        : ''
+    const systemPromptSuffix = `${skillsSection}${memorySection}${agentsSection}`
 
     // Capability handed to the run's tools: run a focused child agent to completion. The child
     // reuses this session's provider/model/tools but starts from just its task (no parent
@@ -294,13 +329,20 @@ export class SyncSpaceEngine {
     const spawnSubagent = (request: SubagentRequest): Promise<SubagentResult> =>
       runSubagent(request, {
         concurrency: this.subagentConcurrency,
-        maxConcurrent: MAX_CONCURRENT_SUBAGENTS,
-        defaultTimeoutMs: DEFAULT_SUBAGENT_TIMEOUT_MS,
+        maxConcurrent: subagentSettings.maxConcurrent,
+        defaultTimeoutMs: subagentSettings.defaultTimeoutSeconds * 1000,
         maxTimeoutMs: MAX_SUBAGENT_TIMEOUT_MS,
         isParentCancelled: () => this.cancelledSessions.has(session.id),
         onProgress: (progress) => onEvent({ type: 'subagent_progress', sessionId: session.id, ...progress }),
         generateId: () => randomUUID(),
         runChild: async (input, control) => {
+          // Resolve the requested agent persona (if any) and prepend it to the child's prompt,
+          // then inject the skills that agent is allowed to use (all enabled skills if unrestricted).
+          const agentDef = input.agent ? agents.find((a) => a.name === input.agent) : undefined
+          const agentSkills = filterSkillsForAgent(enabledSkills, agentDef?.skillIds)
+          const childSystemPrompt =
+            buildSubagentSystemPromptSuffix(input.task, input.resultFormat, agentDef?.systemPrompt) +
+            buildSkillsPromptSection(agentSkills)
           let finalText = ''
           await this.agentRunner.run({
             sessionId: session.id,
@@ -308,7 +350,7 @@ export class SyncSpaceEngine {
             model: session.model,
             temperature: providerConfig.temperature,
             workspaceRoot: workspace.rootPath,
-            systemPromptSuffix: input.systemPromptSuffix,
+            systemPromptSuffix: childSystemPrompt,
             history: [
               { id: randomUUID(), sessionId: session.id, role: 'user', content: input.task, createdAt: Date.now() }
             ],
@@ -341,7 +383,9 @@ export class SyncSpaceEngine {
         temperature: providerConfig.temperature,
         workspaceRoot: workspace.rootPath,
         systemPromptSuffix,
-        spawnSubagent,
+        // Only expose subagents when enabled; otherwise hide the tool from the orchestrator.
+        spawnSubagent: subagentSettings.enabled ? spawnSubagent : undefined,
+        excludeToolNames: subagentSettings.enabled ? [] : [SPAWN_SUBAGENT_TOOL_NAME],
         history,
         onEvent,
         persistMessage: (message) => this.sessionManager.appendMessage(message),

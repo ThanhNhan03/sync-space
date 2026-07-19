@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import type { AppSettings, McpServerConfig, ProviderConfig, ProviderId } from '@shared/types'
+import type {
+  AgentDefinition,
+  AppSettings,
+  McpServerConfig,
+  ProviderConfig,
+  ProviderId,
+  SubagentSettings
+} from '@shared/types'
+import { DEFAULT_AGENTS, DEFAULT_SUBAGENT_SETTINGS } from '@shared/types'
 import { McpServersSection } from './McpServersSection'
 import { SkillsSection } from './SkillsSection'
 import { MemorySection } from './MemorySection'
+import { AgentsSection } from './AgentsSection'
 
 export interface SettingsPanelProps {
   settings: AppSettings
@@ -45,13 +54,14 @@ const PROVIDER_MODELS: Record<ProviderId, string[]> = {
 
 const CUSTOM_MODEL_VALUE = '__custom__'
 
-type SettingsTab = 'general' | 'mcp' | 'skills' | 'memory'
+type SettingsTab = 'general' | 'mcp' | 'skills' | 'memory' | 'agents'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'mcp', label: 'MCP Servers' },
   { id: 'skills', label: 'Skills' },
-  { id: 'memory', label: 'Memory' }
+  { id: 'memory', label: 'Memory' },
+  { id: 'agents', label: 'Agents' }
 ]
 
 function emptyProviderConfig(providerId: ProviderId): ProviderConfig {
@@ -142,6 +152,14 @@ export function SettingsPanel({
 
   const handleMcpServersChange = (mcpServers: McpServerConfig[]): void => {
     onChange({ ...settings, mcpServers })
+  }
+
+  const handleAgentsChange = (agents: AgentDefinition[]): void => {
+    onChange({ ...settings, agents })
+  }
+
+  const handleSubagentSettingsChange = (subagentSettings: SubagentSettings): void => {
+    onChange({ ...settings, subagentSettings })
   }
 
   return (
@@ -301,6 +319,16 @@ export function SettingsPanel({
               <MemorySection
                 enabled={settings.memoryEnabled !== false}
                 onToggleEnabled={(memoryEnabled) => onChange({ ...settings, memoryEnabled })}
+                workspaceRoot={workspaceRoot}
+              />
+            )}
+
+            {activeTab === 'agents' && (
+              <AgentsSection
+                agents={settings.agents ?? DEFAULT_AGENTS}
+                onAgentsChange={handleAgentsChange}
+                subagentSettings={settings.subagentSettings ?? DEFAULT_SUBAGENT_SETTINGS}
+                onSubagentSettingsChange={handleSubagentSettingsChange}
                 workspaceRoot={workspaceRoot}
               />
             )}

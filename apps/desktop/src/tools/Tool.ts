@@ -21,6 +21,8 @@ export interface SubagentRequest {
   resultFormat?: string
   /** Wall-clock limit for the child run; clamped by the coordinator. */
   timeoutSeconds?: number
+  /** Name of a user-defined agent persona to run this task under, if any. */
+  agent?: string
 }
 
 export interface SubagentResult {
