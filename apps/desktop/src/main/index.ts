@@ -4,6 +4,7 @@ import { app, BrowserWindow, session, shell } from 'electron'
 
 import { createDatabase } from '@database/db'
 import {
+  MemoriesRepository,
   MessagesRepository,
   SessionsRepository,
   SettingsRepository,
@@ -111,7 +112,18 @@ app.whenReady().then(() => {
     new WorkspacesRepository(db)
   )
   const settingsRepo = new SettingsRepository(db)
-  const engine = new SyncSpaceEngine(sessionManager, settingsRepo)
+  const memoriesRepo = new MemoriesRepository(db)
+
+  // Global skills live under userData (user-writable); built-in skills ship with the app --
+  // in dev they sit in the source tree, in production they're extracted via extraResources.
+  const globalSkillsDir = join(app.getPath('userData'), 'skills')
+  const builtinSkillsDir = app.isPackaged
+    ? join(process.resourcesPath, 'skills')
+    : join(app.getAppPath(), 'resources', 'skills')
+  const engine = new SyncSpaceEngine(sessionManager, settingsRepo, memoriesRepo, {
+    globalSkillsDir,
+    builtinSkillsDir
+  })
 
   registerIpcHandlers(engine, () => mainWindow)
 

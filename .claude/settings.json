@@ -3,7 +3,9 @@
     "allow": [
       "WebSearch",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:opencoworkai.github.io)"
+      "WebFetch(domain:opencoworkai.github.io)",
+      "Bash(npm run *)",
+      "Bash(npm test *)"
     ]
   }
 }

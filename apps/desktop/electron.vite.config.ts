@@ -23,6 +23,8 @@ export default defineConfig({
         '@agent': resolve(__dirname, 'src/agent'),
         '@tools': resolve(__dirname, 'src/tools'),
         '@mcp': resolve(__dirname, 'src/mcp'),
+        '@skills': resolve(__dirname, 'src/skills'),
+        '@memory': resolve(__dirname, 'src/memory'),
         '@providers': resolve(__dirname, 'src/providers'),
         '@database': resolve(__dirname, 'src/database'),
         '@ipc': resolve(__dirname, 'src/ipc')

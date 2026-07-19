@@ -7,11 +7,13 @@ import type {
   ChatMessage,
   McpPreset,
   McpServerStatus,
+  MemoryEntry,
   MessageAttachment,
   SessionSummary,
+  SkillInfo,
   Workspace
 } from '@shared/types'
-import type { SettingsRepository } from '@database/repositories'
+import type { SettingsRepository, MemoriesRepository } from '@database/repositories'
 import { allTools } from '@tools/index'
 import { ToolManager } from '@tools/ToolManager'
 import { createProvider } from '@providers/registry'
@@ -19,13 +21,26 @@ import { AgentRunner } from '@agent/AgentRunner'
 import { McpManager } from '@mcp/McpManager'
 import { createMcpTools } from '@mcp/mcpTools'
 import { MCP_PRESETS } from '@mcp/presets'
+import { SkillsManager } from '@skills/SkillsManager'
+import { createUseSkillTool } from '@skills/useSkillTool'
+import { buildSkillsPromptSection } from '@skills/skillsPrompt'
+import { MemoryManager } from '@memory/MemoryManager'
+import { createMemoryTools } from '@memory/memoryTools'
 
 import { SessionManager, type CreateSessionInput } from './SessionManager'
+
+export interface EngineOptions {
+  /** User-writable global skills directory (under userData). */
+  globalSkillsDir: string
+  /** Read-only skills shipped with the app, if present. */
+  builtinSkillsDir?: string
+}
 
 const DEFAULT_SETTINGS: AppSettings = {
   activeProviderId: 'openai',
   providers: {},
-  theme: 'system'
+  theme: 'system',
+  memoryEnabled: true
 }
 
 export interface SendMessageParams {
@@ -40,17 +55,36 @@ export interface SendMessageParams {
  * method call here, with no SQL, provider SDKs, or Electron APIs leaking upward.
  */
 export class SyncSpaceEngine {
-  private readonly toolManager = new ToolManager(allTools)
-  private readonly agentRunner = new AgentRunner(this.toolManager)
+  private readonly toolManager: ToolManager
+  private readonly agentRunner: AgentRunner
   private readonly cancelledSessions = new Set<string>()
   private readonly activeRuns = new Set<string>()
   private readonly mcpManager: McpManager
+  private readonly skillsManager: SkillsManager
+  private readonly memoryManager: MemoryManager
   private mcpStatusListener: ((status: McpServerStatus[]) => void) | null = null
 
   constructor(
     private readonly sessionManager: SessionManager,
-    private readonly settingsRepo: SettingsRepository
+    private readonly settingsRepo: SettingsRepository,
+    memoriesRepo: MemoriesRepository,
+    options: EngineOptions
   ) {
+    this.skillsManager = new SkillsManager({
+      globalSkillsDir: options.globalSkillsDir,
+      builtinSkillsDir: options.builtinSkillsDir
+    })
+    this.memoryManager = new MemoryManager(memoriesRepo, () => this.isMemoryEnabled())
+    // The use_skill and remember/recall tools read current settings/workspace on each call,
+    // so they always reflect the enabled skill set / memory state without re-registration.
+    const useSkillTool = createUseSkillTool(
+      this.skillsManager,
+      () => this.getSettings().disabledSkillIds ?? []
+    )
+    const memoryTools = createMemoryTools(this.memoryManager, () => this.isMemoryEnabled())
+    this.toolManager = new ToolManager([...allTools, useSkillTool, ...memoryTools])
+    this.agentRunner = new AgentRunner(this.toolManager)
+
     // Whenever MCP connections or discovered tools change, republish the tool set into the
     // ToolManager (so the agent sees current tools) and notify the UI of new server status.
     this.mcpManager = new McpManager(() => {
@@ -80,6 +114,62 @@ export class SyncSpaceEngine {
 
   getMcpPresets(): McpPreset[] {
     return MCP_PRESETS
+  }
+
+  /** List every discovered skill for a workspace, tagged with its enabled state. */
+  listSkills(workspaceRoot?: string): SkillInfo[] {
+    const disabled = new Set(this.getSettings().disabledSkillIds ?? [])
+    return this.skillsManager.discover(workspaceRoot).map((skill) => ({
+      id: skill.id,
+      name: skill.name,
+      description: skill.description,
+      source: skill.source,
+      dir: skill.dir,
+      enabled: !disabled.has(skill.id)
+    }))
+  }
+
+  /** Toggle a skill on/off (persisted as a disabled-id list) and return the refreshed list. */
+  setSkillEnabled(id: string, enabled: boolean, workspaceRoot?: string): SkillInfo[] {
+    const settings = this.getSettings()
+    const disabled = new Set(settings.disabledSkillIds ?? [])
+    if (enabled) {
+      disabled.delete(id)
+    } else {
+      disabled.add(id)
+    }
+    this.updateSettings({ ...settings, disabledSkillIds: Array.from(disabled) })
+    return this.listSkills(workspaceRoot)
+  }
+
+  /** The user-writable global skills directory (created if missing), for the "open folder" action. */
+  ensureGlobalSkillsDir(): string {
+    return this.skillsManager.ensureGlobalSkillsDir()
+  }
+
+  /** Long-term memory defaults to on; only an explicit `false` disables it. */
+  private isMemoryEnabled(): boolean {
+    return this.getSettings().memoryEnabled !== false
+  }
+
+  listMemories(workspaceRoot?: string): MemoryEntry[] {
+    return this.memoryManager.list(workspaceRoot)
+  }
+
+  addMemory(input: {
+    workspaceRoot: string
+    category: MemoryEntry['category']
+    content: string
+  }): MemoryEntry {
+    return this.memoryManager.add({ ...input, source: 'manual' })
+  }
+
+  deleteMemory(id: string): void {
+    this.memoryManager.delete(id)
+  }
+
+  clearMemories(workspaceRoot?: string): number {
+    return this.memoryManager.clear(workspaceRoot)
   }
 
   /** Registers the single listener the IPC layer uses to push MCP status to the renderer. */
@@ -171,6 +261,17 @@ export class SyncSpaceEngine {
 
     const history = this.sessionManager.getMessages(session.id)
 
+    // Progressive disclosure: inject only enabled skills' name+description into the system
+    // prompt; the model loads full bodies on demand via the use_skill tool.
+    const disabledSkills = new Set(settings.disabledSkillIds ?? [])
+    const enabledSkills = this.skillsManager
+      .discover(workspace.rootPath)
+      .filter((skill) => !disabledSkills.has(skill.id))
+    const skillsSection = buildSkillsPromptSection(enabledSkills)
+    // Inject memories relevant to what the user just asked (no-op when memory is disabled).
+    const memorySection = this.memoryManager.getPromptSection(workspace.rootPath, params.content)
+    const systemPromptSuffix = `${skillsSection}${memorySection}`
+
     this.cancelledSessions.delete(session.id)
     this.activeRuns.add(session.id)
     try {
@@ -180,11 +281,19 @@ export class SyncSpaceEngine {
         model: session.model,
         temperature: providerConfig.temperature,
         workspaceRoot: workspace.rootPath,
+        systemPromptSuffix,
         history,
         onEvent,
         persistMessage: (message) => this.sessionManager.appendMessage(message),
         isCancelled: () => this.cancelledSessions.has(session.id)
       })
+
+      // After the run, extract durable facts from the updated transcript. Fire-and-forget and
+      // best-effort: memory work must never block or fail the chat. Gated internally by the flag.
+      const updatedHistory = this.sessionManager.getMessages(session.id)
+      void this.memoryManager
+        .extract(provider, session.model, workspace.rootPath, session.id, updatedHistory)
+        .catch((error) => console.error('[Memory] extraction failed:', error))
     } finally {
       this.activeRuns.delete(session.id)
       this.cancelledSessions.delete(session.id)

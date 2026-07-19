@@ -12,6 +12,11 @@ export interface AgentRunParams {
   model: string
   temperature?: number
   workspaceRoot: string
+  /**
+   * Extra system-prompt text appended after the base prompt for this run -- currently the
+   * "Available skills" section, which depends on the workspace and the user's enabled skills.
+   */
+  systemPromptSuffix?: string
   /** Full conversation history so far, including the user message that triggered this run. */
   history: ChatMessage[]
   onEvent: (event: AgentStreamEvent) => void
@@ -33,6 +38,7 @@ export class AgentRunner {
   async run(params: AgentRunParams): Promise<void> {
     const { sessionId, provider, onEvent } = params
     const history = [...params.history]
+    const systemPrompt = `${SYSTEM_PROMPT}${params.systemPromptSuffix ?? ''}`
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       if (params.isCancelled()) {
@@ -50,7 +56,7 @@ export class AgentRunner {
         for await (const chunk of provider.stream({
           model: params.model,
           temperature: params.temperature,
-          systemPrompt: SYSTEM_PROMPT,
+          systemPrompt,
           messages: history,
           tools: this.toolManager.getToolDefinitions()
         })) {

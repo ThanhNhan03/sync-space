@@ -3,9 +3,12 @@ import type {
   ChatMessage,
   McpPreset,
   McpServerStatus,
+  MemoryCategory,
+  MemoryEntry,
   MessageAttachment,
   ProviderId,
   SessionSummary,
+  SkillInfo,
   Workspace
 } from './types'
 
@@ -24,7 +27,14 @@ export const IPC = {
   SETTINGS_GET: 'settings:get',
   SETTINGS_UPDATE: 'settings:update',
   MCP_STATUS: 'mcp:status',
-  MCP_PRESETS: 'mcp:presets'
+  MCP_PRESETS: 'mcp:presets',
+  SKILLS_LIST: 'skills:list',
+  SKILLS_SET_ENABLED: 'skills:set-enabled',
+  SKILLS_OPEN_DIR: 'skills:open-dir',
+  MEMORY_LIST: 'memory:list',
+  MEMORY_ADD: 'memory:add',
+  MEMORY_DELETE: 'memory:delete',
+  MEMORY_CLEAR: 'memory:clear'
 } as const
 
 /** Main -> Renderer, fire-and-forget push channels. */
@@ -48,6 +58,13 @@ export interface IpcRequestMap {
   [IPC.SETTINGS_UPDATE]: { settings: AppSettings }
   [IPC.MCP_STATUS]: undefined
   [IPC.MCP_PRESETS]: undefined
+  [IPC.SKILLS_LIST]: { workspaceRoot?: string }
+  [IPC.SKILLS_SET_ENABLED]: { id: string; enabled: boolean; workspaceRoot?: string }
+  [IPC.SKILLS_OPEN_DIR]: { scope: 'global' | 'project'; workspaceRoot?: string }
+  [IPC.MEMORY_LIST]: { workspaceRoot?: string }
+  [IPC.MEMORY_ADD]: { workspaceRoot: string; category: MemoryCategory; content: string }
+  [IPC.MEMORY_DELETE]: { id: string }
+  [IPC.MEMORY_CLEAR]: { workspaceRoot?: string }
 }
 
 export interface IpcResponseMap {
@@ -65,6 +82,13 @@ export interface IpcResponseMap {
   [IPC.SETTINGS_UPDATE]: AppSettings
   [IPC.MCP_STATUS]: McpServerStatus[]
   [IPC.MCP_PRESETS]: McpPreset[]
+  [IPC.SKILLS_LIST]: SkillInfo[]
+  [IPC.SKILLS_SET_ENABLED]: SkillInfo[]
+  [IPC.SKILLS_OPEN_DIR]: { opened: boolean }
+  [IPC.MEMORY_LIST]: MemoryEntry[]
+  [IPC.MEMORY_ADD]: MemoryEntry
+  [IPC.MEMORY_DELETE]: { id: string }
+  [IPC.MEMORY_CLEAR]: { cleared: number }
 }
 
 export type IpcChannel = keyof IpcRequestMap

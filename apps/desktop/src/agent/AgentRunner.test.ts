@@ -127,6 +127,28 @@ describe('AgentRunner', () => {
     expect(secondRequestMessages.some((m) => m.role === 'tool' && m.content === 'contents of a.txt')).toBe(true)
   })
 
+  it('appends systemPromptSuffix (e.g. the skills section) to the base system prompt', async () => {
+    const provider = new ScriptedProvider([[{ type: 'done', stopReason: 'stop' }]])
+    const runner = new AgentRunner(new ToolManager([]))
+
+    await runner.run({
+      sessionId: 's1',
+      provider,
+      model: 'gpt-test',
+      workspaceRoot: '/workspace',
+      systemPromptSuffix: '\n\n## Available skills\n- pdf: work with PDFs',
+      history: [],
+      onEvent: () => {},
+      persistMessage: () => {},
+      isCancelled: () => false
+    })
+
+    const prompt = provider.requestsSeen[0].systemPrompt ?? ''
+    expect(prompt).toContain('You are SyncSpace')
+    expect(prompt).toContain('## Available skills')
+    expect(prompt).toContain('- pdf: work with PDFs')
+  })
+
   it('stops without calling the provider again once isCancelled() reports true', async () => {
     const provider = new ScriptedProvider([
       [{ type: 'token', delta: 'partial' }, { type: 'done', stopReason: 'stop' }]

@@ -1,8 +1,8 @@
-import { basename } from 'node:path'
-import { stat } from 'node:fs/promises'
+import { basename, join } from 'node:path'
+import { mkdir, stat } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 
-import { dialog, ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { dialog, ipcMain, shell, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
 
 import { IPC, IPC_PUSH } from '@shared/ipc'
 import type { IpcRequestMap, IpcResponseMap } from '@shared/ipc'
@@ -114,6 +114,37 @@ export function registerIpcHandlers(engine: SyncSpaceEngine, getWindow: () => Br
 
   handle(IPC.MCP_STATUS, () => engine.getMcpStatus())
   handle(IPC.MCP_PRESETS, () => engine.getMcpPresets())
+
+  handle(IPC.MEMORY_LIST, (req) => engine.listMemories(req.workspaceRoot))
+  handle(IPC.MEMORY_ADD, (req) =>
+    engine.addMemory({ workspaceRoot: req.workspaceRoot, category: req.category, content: req.content })
+  )
+  handle(IPC.MEMORY_DELETE, (req) => {
+    engine.deleteMemory(req.id)
+    return { id: req.id }
+  })
+  handle(IPC.MEMORY_CLEAR, (req) => ({ cleared: engine.clearMemories(req.workspaceRoot) }))
+
+  handle(IPC.SKILLS_LIST, (req) => engine.listSkills(req.workspaceRoot))
+  handle(IPC.SKILLS_SET_ENABLED, (req) =>
+    engine.setSkillEnabled(req.id, req.enabled, req.workspaceRoot)
+  )
+  handle(IPC.SKILLS_OPEN_DIR, async (req) => {
+    // Resolve the target folder, creating it so the user always lands in a real directory to
+    // drop skill folders into. Project skills live under the workspace's .claude/skills.
+    let dir: string
+    if (req.scope === 'project') {
+      if (!req.workspaceRoot) {
+        return { opened: false }
+      }
+      dir = join(req.workspaceRoot, '.claude', 'skills')
+      await mkdir(dir, { recursive: true }).catch(() => {})
+    } else {
+      dir = engine.ensureGlobalSkillsDir()
+    }
+    const error = await shell.openPath(dir)
+    return { opened: error === '' }
+  })
 
   // Push live MCP server status (connect/fail/tool-count changes) to the renderer.
   engine.onMcpStatusChange((status) => {

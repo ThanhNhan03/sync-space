@@ -127,6 +127,49 @@ export interface McpPreset {
   description?: string
 }
 
+/** Where a skill was discovered. Project skills override global, which override built-in. */
+export type SkillSource = 'project' | 'global' | 'builtin'
+
+/**
+ * A discovered Agent Skill -- a folder with a SKILL.md (front-matter name/description + a
+ * markdown body of instructions, plus optional bundled scripts). Its name+description are
+ * shown to the agent; the full body is loaded on demand via the `use_skill` tool.
+ */
+export interface SkillInfo {
+  /** Stable identifier; equals the skill name (unique after cross-source dedup). */
+  id: string
+  name: string
+  description: string
+  source: SkillSource
+  /** Absolute path to the skill folder (where its bundled scripts live). */
+  dir: string
+  enabled: boolean
+}
+
+/** How a memory came to exist: auto-extracted, added by the agent's remember tool, or by the user. */
+export type MemorySource = 'auto' | 'agent' | 'manual'
+
+/** Rough kind of durable fact, used to group memories in the UI and guide extraction. */
+export type MemoryCategory = 'identity' | 'preference' | 'project' | 'fact'
+
+/**
+ * A durable fact the agent has learned and should recall across sessions. Scoped to a
+ * workspace by its root path; an empty workspaceRoot means the memory is global (applies
+ * everywhere). Adapted from OpenCowork's "core memory" tier.
+ */
+export interface MemoryEntry {
+  id: string
+  /** Absolute workspace path this memory belongs to, or '' for a global memory. */
+  workspaceRoot: string
+  category: MemoryCategory
+  content: string
+  source: MemorySource
+  /** The session that produced this memory, when known. */
+  sessionId?: string
+  createdAt: number
+  updatedAt: number
+}
+
 export interface AppSettings {
   activeProviderId: ProviderId
   providers: Partial<Record<ProviderId, ProviderConfig>>
@@ -134,6 +177,13 @@ export interface AppSettings {
   activeWorkspaceId?: string
   /** User-configured MCP servers whose tools are exposed to the agent. */
   mcpServers?: McpServerConfig[]
+  /** Skill ids (== names) the user has turned off; all discovered skills are enabled by default. */
+  disabledSkillIds?: string[]
+  /**
+   * Whether long-term memory is active. When true, relevant memories are injected into the
+   * agent's prompt and new facts are auto-extracted after each run. Defaults to true.
+   */
+  memoryEnabled?: boolean
 }
 
 /**

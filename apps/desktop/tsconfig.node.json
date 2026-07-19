@@ -22,6 +22,8 @@
       "@agent/*": ["src/agent/*"],
       "@tools/*": ["src/tools/*"],
       "@mcp/*": ["src/mcp/*"],
+      "@skills/*": ["src/skills/*"],
+      "@memory/*": ["src/memory/*"],
       "@providers/*": ["src/providers/*"],
       "@database/*": ["src/database/*"],
       "@ipc/*": ["src/ipc/*"]
@@ -35,6 +37,8 @@
     "src/agent/**/*",
     "src/tools/**/*",
     "src/mcp/**/*",
+    "src/skills/**/*",
+    "src/memory/**/*",
     "src/providers/**/*",
     "src/database/**/*",
     "src/ipc/**/*"

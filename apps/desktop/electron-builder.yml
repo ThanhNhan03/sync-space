@@ -8,6 +8,9 @@ files:
   - package.json
 asarUnpack:
   - '**/*.node'
+extraResources:
+  - from: resources/skills
+    to: skills
 win:
   target: nsis
 mac:

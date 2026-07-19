@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import type { AppSettings, McpServerConfig, ProviderConfig, ProviderId } from '@shared/types'
 import { McpServersSection } from './McpServersSection'
+import { SkillsSection } from './SkillsSection'
+import { MemorySection } from './MemorySection'
 
 export interface SettingsPanelProps {
   settings: AppSettings
@@ -41,6 +43,15 @@ const PROVIDER_MODELS: Record<ProviderId, string[]> = {
 
 const CUSTOM_MODEL_VALUE = '__custom__'
 
+type SettingsTab = 'general' | 'mcp' | 'skills' | 'memory'
+
+const TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'mcp', label: 'MCP Servers' },
+  { id: 'skills', label: 'Skills' },
+  { id: 'memory', label: 'Memory' }
+]
+
 function emptyProviderConfig(providerId: ProviderId): ProviderConfig {
   return { providerId, apiKey: '', baseUrl: '', model: '', temperature: undefined }
 }
@@ -78,6 +89,7 @@ export function SettingsPanel({
   // string happens to match a curated option -- without it, picking Custom... and clearing
   // the model to '' would immediately collapse back to the placeholder on the next render.
   const [manualCustomMode, setManualCustomMode] = useState(isStoredCustomModel)
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general')
 
   useEffect(() => {
     setManualCustomMode(isStoredCustomModel)
@@ -151,8 +163,28 @@ export function SettingsPanel({
           </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-2xl space-y-4 p-6">
+      <div className="flex min-h-0 flex-1">
+        <nav className="w-44 shrink-0 space-y-1 border-r border-white/10 p-3">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`block w-full rounded-md px-3 py-1.5 text-left text-sm ${
+                activeTab === tab.id
+                  ? 'bg-accent/90 text-white'
+                  : 'text-slate-300 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-2xl space-y-4 p-6">
+            {activeTab === 'general' && (
+              <>
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-gray-300">Provider</span>
             <select
@@ -250,12 +282,27 @@ export function SettingsPanel({
               ))}
             </select>
           </label>
+              </>
+            )}
 
-          <McpServersSection
-            servers={settings.mcpServers ?? []}
-            onChange={handleMcpServersChange}
-            workspaceRoot={workspaceRoot}
-          />
+            {activeTab === 'mcp' && (
+              <McpServersSection
+                servers={settings.mcpServers ?? []}
+                onChange={handleMcpServersChange}
+                workspaceRoot={workspaceRoot}
+              />
+            )}
+
+            {activeTab === 'skills' && <SkillsSection workspaceRoot={workspaceRoot} />}
+
+            {activeTab === 'memory' && (
+              <MemorySection
+                enabled={settings.memoryEnabled !== false}
+                onToggleEnabled={(memoryEnabled) => onChange({ ...settings, memoryEnabled })}
+                workspaceRoot={workspaceRoot}
+              />
+            )}
+          </div>
         </div>
       </div>
 

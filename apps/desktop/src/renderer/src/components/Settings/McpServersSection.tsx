@@ -146,7 +146,7 @@ export function McpServersSection({
   }
 
   return (
-    <div className="border-t border-white/10 pt-4">
+    <div>
       <div className="mb-2 flex items-center justify-between">
         <span className="text-sm font-medium text-gray-300">MCP servers</span>
         {!draft && (

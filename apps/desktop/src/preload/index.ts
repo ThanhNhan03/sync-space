@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 import { IPC, IPC_PUSH } from '../shared/ipc'
 import type { IpcRequestMap, IpcResponseMap } from '../shared/ipc'
-import type { AgentStreamEvent, McpServerStatus } from '../shared/types'
+import type { AgentStreamEvent, McpServerStatus, MemoryCategory } from '../shared/types'
 
 function invoke<K extends keyof IpcRequestMap>(
   channel: K,
@@ -41,6 +41,23 @@ const api = {
   getMcpStatus: () => invoke(IPC.MCP_STATUS),
 
   getMcpPresets: () => invoke(IPC.MCP_PRESETS),
+
+  listSkills: (workspaceRoot?: string) => invoke(IPC.SKILLS_LIST, { workspaceRoot }),
+
+  setSkillEnabled: (id: string, enabled: boolean, workspaceRoot?: string) =>
+    invoke(IPC.SKILLS_SET_ENABLED, { id, enabled, workspaceRoot }),
+
+  openSkillsDir: (scope: 'global' | 'project', workspaceRoot?: string) =>
+    invoke(IPC.SKILLS_OPEN_DIR, { scope, workspaceRoot }),
+
+  listMemories: (workspaceRoot?: string) => invoke(IPC.MEMORY_LIST, { workspaceRoot }),
+
+  addMemory: (workspaceRoot: string, category: MemoryCategory, content: string) =>
+    invoke(IPC.MEMORY_ADD, { workspaceRoot, category, content }),
+
+  deleteMemory: (id: string) => invoke(IPC.MEMORY_DELETE, { id }),
+
+  clearMemories: (workspaceRoot?: string) => invoke(IPC.MEMORY_CLEAR, { workspaceRoot }),
 
   /** Subscribes to Agent Runner stream events; returns an unsubscribe function. */
   onStreamEvent(callback: (event: AgentStreamEvent) => void): () => void {
