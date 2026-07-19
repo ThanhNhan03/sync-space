@@ -14,9 +14,30 @@ export interface ToolDefinition {
   schema: JsonSchema
 }
 
+/** A focused sub-task handed to a child agent by the spawn_subagent tool. */
+export interface SubagentRequest {
+  task: string
+  /** Optional description of the desired output shape. */
+  resultFormat?: string
+  /** Wall-clock limit for the child run; clamped by the coordinator. */
+  timeoutSeconds?: number
+}
+
+export interface SubagentResult {
+  ok: boolean
+  /** The child agent's final text, or an error/timeout message when ok is false. */
+  text: string
+}
+
 export interface ToolContext {
   /** Absolute path to the workspace folder this session is bound to. */
   workspaceRoot: string
+  /**
+   * Runs a focused child agent to completion and returns its final answer. Present only on
+   * top-level runs -- it is deliberately omitted from a child's context so subagents cannot
+   * spawn further subagents (bounding fan-out).
+   */
+  spawnSubagent?: (request: SubagentRequest) => Promise<SubagentResult>
 }
 
 export interface ToolExecutionResult {

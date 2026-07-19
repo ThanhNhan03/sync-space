@@ -17,7 +17,8 @@ const PROVIDER_OPTIONS: { id: ProviderId; label: string }[] = [
   { id: 'openai', label: 'OpenAI' },
   { id: 'claude', label: 'Claude' },
   { id: 'gemini', label: 'Gemini' },
-  { id: 'openrouter', label: 'OpenRouter' }
+  { id: 'openrouter', label: 'OpenRouter' },
+  { id: 'minimax', label: 'MiniMax' }
 ]
 
 const THEME_OPTIONS: AppSettings['theme'][] = ['light', 'dark', 'system']
@@ -38,7 +39,8 @@ const PROVIDER_MODELS: Record<ProviderId, string[]> = {
     'meta-llama/llama-4-maverick',
     'deepseek/deepseek-v3.2',
     'mistralai/mistral-large'
-  ]
+  ],
+  minimax: ['MiniMax-M2', 'MiniMax-M2.5', 'MiniMax-M3']
 }
 
 const CUSTOM_MODEL_VALUE = '__custom__'

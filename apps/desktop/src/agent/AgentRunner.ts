@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { AgentStreamEvent, ChatMessage, ToolCallRequest, ToolCallResult } from '@shared/types'
 import type { LLMProvider } from '@providers/LLMProvider'
 import type { ToolManager } from '@tools/ToolManager'
+import type { SubagentRequest, SubagentResult, ToolContext } from '@tools/Tool'
 
 import { SYSTEM_PROMPT } from './systemPrompt'
 
@@ -19,6 +20,13 @@ export interface AgentRunParams {
   systemPromptSuffix?: string
   /** Full conversation history so far, including the user message that triggered this run. */
   history: ChatMessage[]
+  /**
+   * When present, tools may delegate to a focused child agent via context.spawnSubagent.
+   * Omitted for child runs so subagents cannot spawn further subagents.
+   */
+  spawnSubagent?: (request: SubagentRequest) => Promise<SubagentResult>
+  /** Tool names to hide from the model this run (e.g. spawn_subagent inside a child run). */
+  excludeToolNames?: string[]
   onEvent: (event: AgentStreamEvent) => void
   persistMessage: (message: ChatMessage) => void
   isCancelled: () => boolean
@@ -39,6 +47,14 @@ export class AgentRunner {
     const { sessionId, provider, onEvent } = params
     const history = [...params.history]
     const systemPrompt = `${SYSTEM_PROMPT}${params.systemPromptSuffix ?? ''}`
+    const toolContext: ToolContext = {
+      workspaceRoot: params.workspaceRoot,
+      spawnSubagent: params.spawnSubagent
+    }
+    const excludedTools = new Set(params.excludeToolNames ?? [])
+    const toolDefinitions = this.toolManager
+      .getToolDefinitions()
+      .filter((definition) => !excludedTools.has(definition.name))
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       if (params.isCancelled()) {
@@ -58,7 +74,7 @@ export class AgentRunner {
           temperature: params.temperature,
           systemPrompt,
           messages: history,
-          tools: this.toolManager.getToolDefinitions()
+          tools: toolDefinitions
         })) {
           if (params.isCancelled()) {
             return
@@ -112,7 +128,7 @@ export class AgentRunner {
           return
         }
         onEvent({ type: 'tool_call_start', sessionId, toolCall })
-        const result = await this.toolManager.execute(toolCall, { workspaceRoot: params.workspaceRoot })
+        const result = await this.toolManager.execute(toolCall, toolContext)
         results.push(result)
         onEvent({ type: 'tool_call_result', sessionId, result })
       }

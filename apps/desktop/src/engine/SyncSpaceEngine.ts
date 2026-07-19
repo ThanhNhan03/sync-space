@@ -18,6 +18,14 @@ import { allTools } from '@tools/index'
 import { ToolManager } from '@tools/ToolManager'
 import { createProvider } from '@providers/registry'
 import { AgentRunner } from '@agent/AgentRunner'
+import { createSpawnSubagentTool, SPAWN_SUBAGENT_TOOL_NAME } from '@agent/subagentTool'
+import {
+  runSubagent,
+  MAX_CONCURRENT_SUBAGENTS,
+  DEFAULT_SUBAGENT_TIMEOUT_MS,
+  MAX_SUBAGENT_TIMEOUT_MS
+} from '@agent/subagent'
+import type { SubagentRequest, SubagentResult } from '@tools/Tool'
 import { McpManager } from '@mcp/McpManager'
 import { createMcpTools } from '@mcp/mcpTools'
 import { MCP_PRESETS } from '@mcp/presets'
@@ -62,6 +70,8 @@ export class SyncSpaceEngine {
   private readonly mcpManager: McpManager
   private readonly skillsManager: SkillsManager
   private readonly memoryManager: MemoryManager
+  /** Shared counter bounding concurrent subagents across all sessions. */
+  private readonly subagentConcurrency = { active: 0 }
   private mcpStatusListener: ((status: McpServerStatus[]) => void) | null = null
 
   constructor(
@@ -82,7 +92,12 @@ export class SyncSpaceEngine {
       () => this.getSettings().disabledSkillIds ?? []
     )
     const memoryTools = createMemoryTools(this.memoryManager, () => this.isMemoryEnabled())
-    this.toolManager = new ToolManager([...allTools, useSkillTool, ...memoryTools])
+    this.toolManager = new ToolManager([
+      ...allTools,
+      useSkillTool,
+      ...memoryTools,
+      createSpawnSubagentTool()
+    ])
     this.agentRunner = new AgentRunner(this.toolManager)
 
     // Whenever MCP connections or discovered tools change, republish the tool set into the
@@ -272,6 +287,50 @@ export class SyncSpaceEngine {
     const memorySection = this.memoryManager.getPromptSection(workspace.rootPath, params.content)
     const systemPromptSuffix = `${skillsSection}${memorySection}`
 
+    // Capability handed to the run's tools: run a focused child agent to completion. The child
+    // reuses this session's provider/model/tools but starts from just its task (no parent
+    // history), its messages are ephemeral (never persisted), and it is denied spawn_subagent
+    // so it cannot recurse. Only lifecycle progress reaches the UI, not the child's tokens.
+    const spawnSubagent = (request: SubagentRequest): Promise<SubagentResult> =>
+      runSubagent(request, {
+        concurrency: this.subagentConcurrency,
+        maxConcurrent: MAX_CONCURRENT_SUBAGENTS,
+        defaultTimeoutMs: DEFAULT_SUBAGENT_TIMEOUT_MS,
+        maxTimeoutMs: MAX_SUBAGENT_TIMEOUT_MS,
+        isParentCancelled: () => this.cancelledSessions.has(session.id),
+        onProgress: (progress) => onEvent({ type: 'subagent_progress', sessionId: session.id, ...progress }),
+        generateId: () => randomUUID(),
+        runChild: async (input, control) => {
+          let finalText = ''
+          await this.agentRunner.run({
+            sessionId: session.id,
+            provider,
+            model: session.model,
+            temperature: providerConfig.temperature,
+            workspaceRoot: workspace.rootPath,
+            systemPromptSuffix: input.systemPromptSuffix,
+            history: [
+              { id: randomUUID(), sessionId: session.id, role: 'user', content: input.task, createdAt: Date.now() }
+            ],
+            excludeToolNames: [SPAWN_SUBAGENT_TOOL_NAME],
+            onEvent: (event) => {
+              if (
+                event.type === 'message_done' &&
+                event.message.role === 'assistant' &&
+                event.message.content.trim()
+              ) {
+                finalText = event.message.content
+              } else if (event.type === 'tool_call_start') {
+                control.onToolStart(event.toolCall.name)
+              }
+            },
+            persistMessage: () => {},
+            isCancelled: control.isCancelled
+          })
+          return finalText
+        }
+      })
+
     this.cancelledSessions.delete(session.id)
     this.activeRuns.add(session.id)
     try {
@@ -282,6 +341,7 @@ export class SyncSpaceEngine {
         temperature: providerConfig.temperature,
         workspaceRoot: workspace.rootPath,
         systemPromptSuffix,
+        spawnSubagent,
         history,
         onEvent,
         persistMessage: (message) => this.sessionManager.appendMessage(message),

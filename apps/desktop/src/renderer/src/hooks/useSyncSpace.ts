@@ -34,6 +34,11 @@ export function useSyncSpace() {
   const [attachments, setAttachments] = useState<MessageAttachment[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  // Live view of child agents spawned via spawn_subagent for the active session's run.
+  const [subagents, setSubagents] = useState<
+    Record<string, { id: string; task: string; toolName?: string }>
+  >({})
+
   const activeSessionIdRef = useRef<string | null>(null)
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
@@ -89,6 +94,7 @@ export function useSyncSpace() {
     let cancelled = false
     setIsThinking(false)
     setStreamingMessageId(null)
+    setSubagents({})
     void (async () => {
       const loaded = await window.syncspace.getSessionMessages(activeSessionId)
       if (cancelled) return
@@ -155,15 +161,34 @@ export function useSyncSpace() {
           })
           setStreamingMessageId((current) => (current === event.message.id ? null : current))
           break
+        case 'subagent_progress':
+          setSubagents((prev) => {
+            if (event.phase === 'completed' || event.phase === 'failed') {
+              const next = { ...prev }
+              delete next[event.subagentId]
+              return next
+            }
+            return {
+              ...prev,
+              [event.subagentId]: {
+                id: event.subagentId,
+                task: event.task ?? prev[event.subagentId]?.task ?? '',
+                toolName: event.phase === 'tool' ? event.toolName : prev[event.subagentId]?.toolName
+              }
+            }
+          })
+          break
         case 'run_done':
           setIsSending(false)
           setIsThinking(false)
           setStreamingMessageId(null)
+          setSubagents({})
           break
         case 'error':
           setIsSending(false)
           setIsThinking(false)
           setStreamingMessageId(null)
+          setSubagents({})
           setError(event.message)
           break
       }
@@ -290,6 +315,7 @@ export function useSyncSpace() {
     onSend,
     onCancel,
     error,
-    dismissError: () => setError(null)
+    dismissError: () => setError(null),
+    activeSubagents: Object.values(subagents)
   }
 }

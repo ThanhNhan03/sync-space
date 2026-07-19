@@ -67,6 +67,21 @@ export default function App(): JSX.Element {
           />
         )}
 
+        {s.activeSubagents.length > 0 && (
+          <div className="space-y-1 border-t border-white/5 bg-surface px-4 py-2">
+            {s.activeSubagents.map((sub) => (
+              <div key={sub.id} className="flex items-center gap-2 text-xs text-slate-400">
+                <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+                <span className="shrink-0 font-medium text-slate-300">Subagent</span>
+                <span className="truncate">{sub.task}</span>
+                {sub.toolName && (
+                  <span className="ml-auto shrink-0 font-mono text-slate-500">{sub.toolName}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {s.isSending && (
           <div className="flex justify-center border-t border-white/5 bg-surface py-1.5">
             <button

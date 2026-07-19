@@ -1,6 +1,6 @@
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool'
 
-export type ProviderId = 'openai' | 'claude' | 'gemini' | 'openrouter'
+export type ProviderId = 'openai' | 'claude' | 'gemini' | 'openrouter' | 'minimax'
 
 export interface ToolCallRequest {
   id: string
@@ -190,6 +190,8 @@ export interface AppSettings {
  * Streaming events pushed from the Agent Runner (main process) to the renderer
  * over a single push channel. One session can have at most one in-flight run.
  */
+export type SubagentPhase = 'started' | 'tool' | 'completed' | 'failed'
+
 export type AgentStreamEvent =
   | { type: 'thinking'; sessionId: string; active: boolean }
   | { type: 'token'; sessionId: string; messageId: string; delta: string }
@@ -198,3 +200,13 @@ export type AgentStreamEvent =
   | { type: 'message_done'; sessionId: string; message: ChatMessage }
   | { type: 'run_done'; sessionId: string }
   | { type: 'error'; sessionId: string; message: string }
+  /** Progress from a child agent spawned via spawn_subagent, surfaced live in the UI. */
+  | {
+      type: 'subagent_progress'
+      sessionId: string
+      subagentId: string
+      phase: SubagentPhase
+      task?: string
+      toolName?: string
+      error?: string
+    }
