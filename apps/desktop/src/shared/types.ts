@@ -93,6 +93,13 @@ export interface McpServerConfig {
 
 export type McpConnectionState = 'connecting' | 'connected' | 'failed' | 'disabled'
 
+/** A single tool exposed by an MCP server, as shown in the Settings UI. */
+export interface McpToolInfo {
+  /** The server's own tool name (e.g. "search"), friendlier than the model-facing name. */
+  name: string
+  description: string
+}
+
 /** Live status of a configured MCP server, surfaced to the Settings UI. */
 export interface McpServerStatus {
   id: string
@@ -100,6 +107,8 @@ export interface McpServerStatus {
   connected: boolean
   status: McpConnectionState
   toolCount: number
+  /** Tools discovered from this server (empty until connected). */
+  tools: McpToolInfo[]
   /** Last connection/refresh error, if the server is in a failed state. */
   error?: string
 }

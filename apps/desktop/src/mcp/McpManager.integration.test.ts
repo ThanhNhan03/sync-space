@@ -41,6 +41,10 @@ describe('McpManager (stdio integration)', () => {
     expect(status).toHaveLength(1)
     expect(status[0]).toMatchObject({ name: 'Echo Server', connected: true, status: 'connected' })
     expect(status[0].toolCount).toBe(1)
+    // Status surfaces the full tool list (by original name) for the Settings UI.
+    expect(status[0].tools).toEqual([
+      { name: 'echo.tool', description: 'Echoes the provided text.' }
+    ])
   })
 
   it('discovers tools with a sanitized, server-prefixed, model-facing name', async () => {

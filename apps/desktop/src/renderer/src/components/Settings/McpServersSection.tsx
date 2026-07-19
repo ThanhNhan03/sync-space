@@ -110,6 +110,7 @@ export function McpServersSection({
   const [presets, setPresets] = useState<McpPreset[]>([])
   const [statuses, setStatuses] = useState<McpServerStatus[]>([])
   const [draft, setDraft] = useState<DraftServer | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const statusById = useMemo(() => {
     const map = new Map<string, McpServerStatus>()
@@ -172,16 +173,26 @@ export function McpServersSection({
         {servers.map((server) => {
           const status = statusById.get(server.id)
           const dot = STATUS_COLOR[status?.status ?? (server.enabled ? 'connecting' : 'disabled')]
+          const tools = status?.tools ?? []
+          const isExpanded = expandedId === server.id
           return (
-            <li key={server.id} className="rounded-md bg-surface-muted px-3 py-2 text-sm">
-              <div className="flex items-center gap-2">
+            <li key={server.id} className="rounded-md bg-surface-muted text-sm">
+              <div className="flex items-center gap-2 px-3 py-2">
                 <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
                 <span className="truncate font-medium text-white">{server.name}</span>
                 <span className="shrink-0 rounded bg-black/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
                   {server.type}
                 </span>
-                {status && status.status === 'connected' && (
-                  <span className="shrink-0 text-[11px] text-slate-400">{status.toolCount} tools</span>
+                {tools.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(isExpanded ? null : server.id)}
+                    aria-expanded={isExpanded}
+                    className="flex shrink-0 items-center gap-1 text-[11px] text-slate-400 hover:text-white"
+                  >
+                    {tools.length} {tools.length === 1 ? 'tool' : 'tools'}
+                    <span aria-hidden="true">{isExpanded ? '▲' : '▼'}</span>
+                  </button>
                 )}
                 <label className="ml-auto flex shrink-0 items-center gap-1 text-xs text-slate-400">
                   <input
@@ -201,8 +212,24 @@ export function McpServersSection({
                   ✕
                 </button>
               </div>
+
+              {isExpanded && tools.length > 0 && (
+                <ul className="space-y-1.5 border-t border-white/5 px-3 py-2">
+                  {tools.map((tool) => (
+                    <li key={tool.name}>
+                      <span className="font-mono text-xs text-accent">{tool.name}</span>
+                      {tool.description && (
+                        <p className="mt-0.5 text-[11px] leading-snug text-slate-400">
+                          {tool.description}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
               {status?.status === 'failed' && status.error && (
-                <p className="mt-1 truncate text-[11px] text-red-400" title={status.error}>
+                <p className="truncate px-3 pb-2 text-[11px] text-red-400" title={status.error}>
                   {status.error}
                 </p>
               )}

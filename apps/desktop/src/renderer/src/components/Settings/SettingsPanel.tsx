@@ -131,10 +131,9 @@ export function SettingsPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-lg bg-surface p-5 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-white">Settings</h2>
+    <div className="fixed inset-0 z-50 flex flex-col bg-surface">
+      <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-4">
+        <h2 className="text-lg font-semibold text-white">Settings</h2>
           <button
             type="button"
             onClick={onClose}
@@ -150,9 +149,10 @@ export function SettingsPanel({
               <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22z" />
             </svg>
           </button>
-        </div>
+      </header>
 
-        <div className="-mr-2 flex-1 space-y-4 overflow-y-auto pr-2">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-2xl space-y-4 p-6">
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-gray-300">Provider</span>
             <select
@@ -257,17 +257,17 @@ export function SettingsPanel({
             workspaceRoot={workspaceRoot}
           />
         </div>
-
-        <div className="mt-5 flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md bg-accent/90 px-4 py-1.5 text-sm font-medium text-white hover:bg-accent"
-          >
-            Close
-          </button>
-        </div>
       </div>
+
+      <footer className="flex shrink-0 justify-end border-t border-white/10 px-6 py-4">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md bg-accent/90 px-4 py-1.5 text-sm font-medium text-white hover:bg-accent"
+        >
+          Done
+        </button>
+      </footer>
     </div>
   )
 }

@@ -406,7 +406,9 @@ export class McpManager {
   getServerStatus(): McpServerStatus[] {
     return Array.from(this.serverConfigs.values()).map((config) => {
       const connected = this.clients.has(config.id)
-      const toolCount = Array.from(this.tools.values()).filter((t) => t.serverId === config.id).length
+      const tools = Array.from(this.tools.values())
+        .filter((t) => t.serverId === config.id)
+        .map((t) => ({ name: t.originalName, description: t.description }))
       const tracked = this.connectionStatus.get(config.id)
       const status: McpServerStatus['status'] = !config.enabled
         ? 'disabled'
@@ -416,7 +418,8 @@ export class McpManager {
         name: config.name,
         connected,
         status,
-        toolCount,
+        toolCount: tools.length,
+        tools,
         error: status === 'failed' ? this.lastError.get(config.id) : undefined
       }
     })
