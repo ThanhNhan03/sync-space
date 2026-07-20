@@ -1,110 +1,185 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChatInput, MessageList } from './components/Chat'
 import { PermissionPrompt } from './components/Chat/PermissionPrompt'
 import { SessionList, WorkspaceBadge } from './components/Sidebar'
+import { WorkspaceExplorer } from './components/Explorer'
 import { SettingsPanel } from './components/Settings'
+import { Titlebar } from './components/Titlebar'
+import { WelcomeView } from './components/WelcomeView'
+import { ContextPanel } from './components/ContextPanel'
 import { useSyncSpace } from './hooks/useSyncSpace'
+
+type SidebarTab = 'chats' | 'files'
 
 export default function App(): JSX.Element {
   const s = useSyncSpace()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('chats')
+  const [contextPanelOpen, setContextPanelOpen] = useState(true)
+
+  // Apply the light theme only when explicitly chosen; system/dark keep the polished dark UI.
+  // (Light is opt-in until every legacy panel is fully token-migrated.)
+  useEffect(() => {
+    document.documentElement.classList.toggle('light', s.settings?.theme === 'light')
+  }, [s.settings?.theme])
+
+  const activeSession = s.sessions.find((session) => session.id === s.activeSessionId) ?? null
+  const hasProviderKey = Boolean(
+    s.settings && s.settings.providers[s.settings.activeProviderId]?.apiKey
+  )
 
   return (
-    <div className="flex h-full bg-surface text-slate-100">
-      <aside className="flex w-64 shrink-0 flex-col gap-3 border-r border-white/5 bg-surface p-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold tracking-tight text-white">SyncSpace</span>
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Open settings"
-            className="rounded p-1 text-gray-400 hover:text-white"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-              <path
-                fillRule="evenodd"
-                d="M8.34 1.804A1 1 0 0 1 9.32 1h1.36a1 1 0 0 1 .98.804l.24 1.192c.484.15.938.359 1.353.62l1.017-.63a1 1 0 0 1 1.276.149l.962.962a1 1 0 0 1 .15 1.276l-.632 1.017c.26.415.469.87.62 1.353l1.192.24a1 1 0 0 1 .804.98v1.36a1 1 0 0 1-.804.98l-1.192.24c-.15.484-.36.938-.62 1.353l.63 1.017a1 1 0 0 1-.148 1.276l-.962.962a1 1 0 0 1-1.276.15l-1.017-.632c-.415.26-.87.469-1.353.62l-.24 1.192a1 1 0 0 1-.98.804h-1.36a1 1 0 0 1-.98-.804l-.24-1.192a6.02 6.02 0 0 1-1.353-.62l-1.017.63a1 1 0 0 1-1.276-.148l-.962-.962a1 1 0 0 1-.15-1.276l.632-1.017a6.02 6.02 0 0 1-.62-1.353l-1.192-.24a1 1 0 0 1-.804-.98v-1.36a1 1 0 0 1 .804-.98l1.192-.24c.15-.484.36-.938.62-1.353l-.63-1.017a1 1 0 0 1 .148-1.276l.962-.962a1 1 0 0 1 1.276-.15l1.017.632c.415-.26.87-.469 1.353-.62l.24-1.192ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
-                clipRule="evenodd"
+    <div className="flex h-full flex-col bg-background text-text-primary">
+      <Titlebar
+        onOpenSettings={() => setSettingsOpen(true)}
+        onToggleSidebar={() => setSidebarCollapsed((c) => !c)}
+      />
+
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <aside
+          className={`flex shrink-0 flex-col gap-3 overflow-hidden border-r border-border-subtle bg-background-secondary transition-all ${
+            sidebarCollapsed ? 'w-0 border-r-0' : 'w-64 p-3'
+          }`}
+        >
+          {!sidebarCollapsed && (
+            <>
+              <WorkspaceBadge workspace={s.workspace} onChangeWorkspace={s.onSelectWorkspace} />
+
+              <div className="flex shrink-0 gap-1 rounded-lg bg-surface-muted p-1">
+                {(['chats', 'files'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setSidebarTab(tab)}
+                    className={`flex-1 rounded-md px-2 py-1 text-xs font-medium capitalize transition-colors ${
+                      sidebarTab === tab
+                        ? 'bg-surface text-text-primary shadow-soft'
+                        : 'text-text-muted hover:text-text-primary'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              {sidebarTab === 'chats' ? (
+                <SessionList
+                  sessions={s.sessions}
+                  activeSessionId={s.activeSessionId}
+                  onSelect={s.onSelectSession}
+                  onCreate={s.onCreateSession}
+                  onRename={s.onRenameSession}
+                  onDelete={s.onDeleteSession}
+                />
+              ) : (
+                <WorkspaceExplorer workspaceRoot={s.workspace?.rootPath ?? null} />
+              )}
+            </>
+          )}
+        </aside>
+
+        {/* Main */}
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+          {s.error && (
+            <div className="flex items-center justify-between gap-3 bg-error/10 px-4 py-2 text-sm text-error">
+              <span>{s.error}</span>
+              <button type="button" onClick={s.dismissError} className="text-error/80 hover:text-error">
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {!s.activeSessionId ? (
+            <WelcomeView
+              workspace={s.workspace}
+              onSelectWorkspace={s.onSelectWorkspace}
+              attachments={s.attachments}
+              onAttach={s.onAttach}
+              onRemoveAttachment={s.onRemoveAttachment}
+              onStart={s.onStartSession}
+              hasProviderKey={hasProviderKey}
+              onOpenSettings={() => setSettingsOpen(true)}
+            />
+          ) : (
+            <>
+              <div className="flex shrink-0 items-center justify-end border-b border-border-subtle bg-background px-3 py-1.5">
+                <button
+                  type="button"
+                  onClick={() => setContextPanelOpen((open) => !open)}
+                  aria-label={contextPanelOpen ? 'Hide context panel' : 'Show context panel'}
+                  aria-pressed={contextPanelOpen}
+                  title="Toggle context panel"
+                  className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                    contextPanelOpen
+                      ? 'bg-surface-muted text-text-primary'
+                      : 'text-text-muted hover:bg-surface-hover hover:text-text-primary'
+                  }`}
+                >
+                  <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                    <rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                    <path d="M13 4v12" stroke="currentColor" strokeWidth="1.4" />
+                  </svg>
+                </button>
+              </div>
+
+              <MessageList
+                messages={s.messages}
+                streamingMessageId={s.streamingMessageId}
+                isThinking={s.isThinking}
               />
-            </svg>
-          </button>
-        </div>
 
-        <WorkspaceBadge workspace={s.workspace} onChangeWorkspace={s.onSelectWorkspace} />
+              {s.activeSubagents.length > 0 && (
+                <div className="space-y-1 border-t border-border-subtle bg-background px-4 py-2">
+                  {s.activeSubagents.map((sub) => (
+                    <div key={sub.id} className="flex items-center gap-2 text-xs text-text-secondary">
+                      <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+                      <span className="shrink-0 font-medium text-text-secondary">Subagent</span>
+                      <span className="truncate">{sub.task}</span>
+                      {sub.toolName && (
+                        <span className="ml-auto shrink-0 font-mono text-text-muted">{sub.toolName}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-        <SessionList
-          sessions={s.sessions}
-          activeSessionId={s.activeSessionId}
-          onSelect={s.onSelectSession}
-          onCreate={s.onCreateSession}
-          onRename={s.onRenameSession}
-          onDelete={s.onDeleteSession}
-        />
-      </aside>
+              {s.isSending && (
+                <div className="flex justify-center border-t border-border-subtle bg-background py-1.5">
+                  <button
+                    type="button"
+                    onClick={s.onCancel}
+                    className="rounded-full bg-surface px-3 py-1 text-xs font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+                  >
+                    Stop generating
+                  </button>
+                </div>
+              )}
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        {s.error && (
-          <div className="flex items-center justify-between gap-3 bg-red-500/10 px-4 py-2 text-sm text-red-300">
-            <span>{s.error}</span>
-            <button type="button" onClick={s.dismissError} className="text-red-200 hover:text-white">
-              Dismiss
-            </button>
-          </div>
-        )}
+              <ChatInput
+                value={s.composerValue}
+                onChange={s.setComposerValue}
+                onSend={s.onSend}
+                onAttach={s.onAttach}
+                attachments={s.attachments}
+                onRemoveAttachment={s.onRemoveAttachment}
+                disabled={!s.activeSessionId || s.isSending}
+              />
+            </>
+          )}
+        </main>
 
-        {!s.workspace ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-gray-500">
-            Select a workspace folder to start working with SyncSpace.
-          </div>
-        ) : !s.activeSessionId ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-gray-500">
-            Create a session to start chatting.
-          </div>
-        ) : (
-          <MessageList
-            messages={s.messages}
-            streamingMessageId={s.streamingMessageId}
-            isThinking={s.isThinking}
+        {/* Context panel (only in a session); user-toggleable via the button above the chat. */}
+        {s.activeSessionId && (
+          <ContextPanel
+            workspace={s.workspace}
+            session={activeSession}
+            messageCount={s.messages.length}
+            open={contextPanelOpen}
           />
         )}
-
-        {s.activeSubagents.length > 0 && (
-          <div className="space-y-1 border-t border-white/5 bg-surface px-4 py-2">
-            {s.activeSubagents.map((sub) => (
-              <div key={sub.id} className="flex items-center gap-2 text-xs text-slate-400">
-                <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" aria-hidden="true" />
-                <span className="shrink-0 font-medium text-slate-300">Subagent</span>
-                <span className="truncate">{sub.task}</span>
-                {sub.toolName && (
-                  <span className="ml-auto shrink-0 font-mono text-slate-500">{sub.toolName}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {s.isSending && (
-          <div className="flex justify-center border-t border-white/5 bg-surface py-1.5">
-            <button
-              type="button"
-              onClick={s.onCancel}
-              className="rounded-full bg-surface-muted px-3 py-1 text-xs font-medium text-slate-300 hover:bg-white/10 hover:text-white"
-            >
-              Stop generating
-            </button>
-          </div>
-        )}
-
-        <ChatInput
-          value={s.composerValue}
-          onChange={s.setComposerValue}
-          onSend={s.onSend}
-          onAttach={s.onAttach}
-          attachments={s.attachments}
-          onRemoveAttachment={s.onRemoveAttachment}
-          disabled={!s.activeSessionId || s.isSending}
-        />
-      </main>
+      </div>
 
       {settingsOpen && s.settings && (
         <SettingsPanel

@@ -62,6 +62,21 @@ const api = {
   respondPermission: (requestId: string, decision: 'allow' | 'deny' | 'allow_always') =>
     invoke(IPC.PERMISSION_RESPOND, { requestId, decision }),
 
+  listWorkspaceFiles: (workspaceRoot: string, relativePath?: string) =>
+    invoke(IPC.WORKSPACE_FILES_LIST, { workspaceRoot, relativePath }),
+
+  previewWorkspaceFile: (workspaceRoot: string, relativePath: string) =>
+    invoke(IPC.WORKSPACE_FILE_PREVIEW, { workspaceRoot, relativePath }),
+
+  exportWorkspaceFile: (workspaceRoot: string, relativePath: string) =>
+    invoke(IPC.WORKSPACE_FILE_EXPORT, { workspaceRoot, relativePath }),
+
+  openWorkspaceFileExternal: (workspaceRoot: string, relativePath: string) =>
+    invoke(IPC.WORKSPACE_FILE_OPEN_EXTERNAL, { workspaceRoot, relativePath }),
+
+  showWorkspaceFileInFolder: (workspaceRoot: string, relativePath: string) =>
+    invoke(IPC.WORKSPACE_FILE_SHOW_IN_FOLDER, { workspaceRoot, relativePath }),
+
   /** Subscribes to Agent Runner stream events; returns an unsubscribe function. */
   onStreamEvent(callback: (event: AgentStreamEvent) => void): () => void {
     const listener = (_event: unknown, streamEvent: AgentStreamEvent): void => callback(streamEvent)

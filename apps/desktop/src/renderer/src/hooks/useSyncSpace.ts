@@ -305,6 +305,44 @@ export function useSyncSpace() {
     void window.syncspace.cancelChat(activeSessionId)
   }, [activeSessionId])
 
+  // Start a brand-new session from the welcome screen and immediately send the first message.
+  const onStartSession = useCallback(
+    async (content: string) => {
+      if (!workspace || !settings) return
+      const text = content.trim()
+      const attached = attachments
+      if (text.length === 0 && attached.length === 0) return
+
+      const providerId = settings.activeProviderId
+      const model = settings.providers[providerId]?.model ?? ''
+      const created = await window.syncspace.createSession({
+        workspaceId: workspace.id,
+        providerId,
+        model,
+        title: text.slice(0, 48) || 'New session'
+      })
+      await refreshSessions(workspace.id)
+      setActiveSessionId(created.id)
+
+      const optimistic: ChatMessage = {
+        id: randomId(),
+        sessionId: created.id,
+        role: 'user',
+        content: text,
+        attachments: attached.length > 0 ? attached : undefined,
+        createdAt: Date.now()
+      }
+      setMessages([optimistic])
+      setIsSending(true)
+      setError(null)
+      const attachmentPaths = attached.map((a) => a.path)
+      setComposerValue('')
+      setAttachments([])
+      void window.syncspace.sendMessage(created.id, text, attachmentPaths)
+    },
+    [workspace, settings, attachments, refreshSessions]
+  )
+
   const onRespondPermission = useCallback(
     (requestId: string, decision: 'allow' | 'deny' | 'allow_always') => {
       void window.syncspace.respondPermission(requestId, decision)
@@ -335,6 +373,7 @@ export function useSyncSpace() {
     onAttach,
     onRemoveAttachment,
     onSend,
+    onStartSession,
     onCancel,
     error,
     dismissError: () => setError(null),

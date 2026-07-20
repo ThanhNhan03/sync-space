@@ -27,6 +27,7 @@ export default defineConfig({
         '@memory': resolve(__dirname, 'src/memory'),
         '@permissions': resolve(__dirname, 'src/permissions'),
         '@screen': resolve(__dirname, 'src/screen'),
+        '@files': resolve(__dirname, 'src/files'),
         '@providers': resolve(__dirname, 'src/providers'),
         '@database': resolve(__dirname, 'src/database'),
         '@ipc': resolve(__dirname, 'src/ipc')

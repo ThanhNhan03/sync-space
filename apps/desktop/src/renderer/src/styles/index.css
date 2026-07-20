@@ -2,14 +2,79 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens, adopted from Open Cowork's warm, layered look. Colors are stored as
+ * space-separated RGB triplets so Tailwind's `rgb(var(--x) / <alpha-value>)` alpha utilities
+ * (e.g. bg-accent/90) keep working. Dark is the default; `.light` on <html> flips to the warm
+ * paper theme.
+ */
 :root {
-  --color-surface: 17 18 23;
-  --color-surface-muted: 27 29 36;
+  --color-background: 24 24 27;
+  --color-background-secondary: 30 30 34;
+  --color-surface: 34 34 39;
+  --color-surface-hover: 43 43 49;
+  --color-surface-active: 51 51 58;
+  --color-surface-muted: 38 38 44;
+  --color-border: 56 56 64;
+  --color-border-muted: 46 46 53;
+  --color-border-subtle: 40 40 46;
+  --color-accent: 129 140 248;
+  --color-accent-hover: 165 180 252;
+  --color-accent-muted: 55 48 107;
+  --color-text-primary: 244 244 245;
+  --color-text-secondary: 180 182 190;
+  --color-text-muted: 130 132 140;
+  --color-success: 74 222 128;
+  --color-warning: 250 204 21;
+  --color-error: 248 113 113;
+
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.28), 0 12px 32px rgb(0 0 0 / 0.28);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.24), 0 8px 24px rgb(0 0 0 / 0.22);
+}
+
+.light {
+  --color-background: 244 242 236;
+  --color-background-secondary: 237 234 226;
+  --color-surface: 255 255 255;
+  --color-surface-hover: 243 241 235;
+  --color-surface-active: 234 231 223;
+  --color-surface-muted: 240 238 231;
+  --color-border: 221 216 205;
+  --color-border-muted: 228 224 214;
+  --color-border-subtle: 234 230 221;
   --color-accent: 99 102 241;
+  --color-accent-hover: 79 82 221;
+  --color-accent-muted: 224 226 253;
+  --color-text-primary: 34 34 38;
+  --color-text-secondary: 82 84 92;
+  --color-text-muted: 132 134 142;
+  --color-success: 22 163 74;
+  --color-warning: 202 138 4;
+  --color-error: 220 38 38;
+
+  --shadow-soft: 0 1px 2px rgb(120 110 90 / 0.10), 0 12px 32px rgb(120 110 90 / 0.12);
+  --shadow-card: 0 1px 2px rgb(120 110 90 / 0.08), 0 8px 24px rgb(120 110 90 / 0.10);
 }
 
 html,
 body,
 #root {
   height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: rgb(var(--color-background));
+  color: rgb(var(--color-text-primary));
+  font-family:
+    'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Titlebar drag regions (used if the window ever becomes frameless). */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
 }

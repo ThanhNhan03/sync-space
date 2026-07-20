@@ -46,19 +46,19 @@ export function ChatInput({
   }
 
   return (
-    <div className="border-t border-white/5 bg-surface px-4 py-3">
+    <div className="border-t border-border-subtle bg-background px-4 py-3">
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((attachment) => (
             <span
               key={attachment.id}
-              className="inline-flex items-center gap-2 rounded-full bg-surface-muted px-3 py-1 text-xs text-slate-300"
+              className="inline-flex items-center gap-2 rounded-full bg-surface-muted px-3 py-1 text-xs text-text-secondary"
             >
               <span className="max-w-[10rem] truncate">{attachment.name}</span>
               <button
                 type="button"
                 onClick={() => onRemoveAttachment(attachment.id)}
-                className="text-slate-500 transition hover:text-slate-100"
+                className="text-text-muted transition hover:text-text-primary"
                 aria-label={`Remove ${attachment.name}`}
               >
                 &times;
@@ -68,13 +68,13 @@ export function ChatInput({
         </div>
       )}
 
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-2 rounded-4xl border border-border-muted bg-surface p-1.5 shadow-soft">
         <button
           type="button"
           onClick={onAttach}
           disabled={disabled}
           aria-label="Attach file"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg text-slate-400 transition hover:bg-surface-muted hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base text-text-muted transition hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
         >
           📎
         </button>
@@ -87,7 +87,7 @@ export function ChatInput({
           disabled={disabled}
           rows={1}
           placeholder="Message SyncSpace…"
-          className="max-h-[200px] min-h-[40px] flex-1 resize-none rounded-2xl border border-white/5 bg-surface-muted px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
+          className="max-h-[200px] min-h-[36px] flex-1 resize-none border-none bg-transparent px-2 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         />
 
         <button
@@ -95,7 +95,7 @@ export function ChatInput({
           onClick={onSend}
           disabled={!canSend}
           aria-label="Send message"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-white transition hover:bg-accent/90 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-slate-500"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-white transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted"
         >
           ➤
         </button>

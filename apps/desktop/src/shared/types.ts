@@ -300,6 +300,37 @@ export const DEFAULT_PERMISSION_RULES: PermissionRule[] = [
   { tool: 'locate_on_screen', action: 'ask' }
 ]
 
+/** One entry in a workspace directory listing, as shown in the file explorer. */
+export interface WorkspaceFileEntry {
+  name: string
+  /** Path relative to the workspace root, using forward slashes. */
+  relativePath: string
+  type: 'file' | 'directory'
+  size?: number
+  modifiedAt?: number
+}
+
+/**
+ * How a previewed file's content is shown. 'text' includes source code and markdown (the
+ * renderer decides code-highlighting vs. rendered markdown from the extension); 'image' is
+ * inlined as a data URI; 'pdf' and 'binary' carry no content -- the UI offers Export /
+ * Open externally / Reveal in folder instead.
+ */
+export type WorkspaceFilePreviewKind = 'text' | 'image' | 'pdf' | 'binary'
+
+export interface WorkspaceFilePreview {
+  kind: WorkspaceFilePreviewKind
+  name: string
+  relativePath: string
+  size: number
+  /** UTF-8 text (kind 'text') or base64 (kind 'image'). Absent for 'pdf'/'binary'. */
+  content?: string
+  /** MIME type, set for images. */
+  mimeType?: string
+  /** True when content was cut off because the file exceeds the preview size cap. */
+  truncated?: boolean
+}
+
 /** Built-in tools shown in the Permissions settings tab, with friendly labels. */
 export const PERMISSION_MANAGED_TOOLS: { name: string; label: string }[] = [
   { name: 'read_file', label: 'Read file' },

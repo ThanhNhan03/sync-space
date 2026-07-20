@@ -9,7 +9,9 @@ import type {
   ProviderId,
   SessionSummary,
   SkillInfo,
-  Workspace
+  Workspace,
+  WorkspaceFileEntry,
+  WorkspaceFilePreview
 } from './types'
 
 /** Renderer -> Main, request/response (invoke/handle). */
@@ -35,7 +37,12 @@ export const IPC = {
   MEMORY_ADD: 'memory:add',
   MEMORY_DELETE: 'memory:delete',
   MEMORY_CLEAR: 'memory:clear',
-  PERMISSION_RESPOND: 'permission:respond'
+  PERMISSION_RESPOND: 'permission:respond',
+  WORKSPACE_FILES_LIST: 'workspace-files:list',
+  WORKSPACE_FILE_PREVIEW: 'workspace-files:preview',
+  WORKSPACE_FILE_EXPORT: 'workspace-files:export',
+  WORKSPACE_FILE_OPEN_EXTERNAL: 'workspace-files:open-external',
+  WORKSPACE_FILE_SHOW_IN_FOLDER: 'workspace-files:show-in-folder'
 } as const
 
 /** Main -> Renderer, fire-and-forget push channels. */
@@ -67,6 +74,11 @@ export interface IpcRequestMap {
   [IPC.MEMORY_DELETE]: { id: string }
   [IPC.MEMORY_CLEAR]: { workspaceRoot?: string }
   [IPC.PERMISSION_RESPOND]: { requestId: string; decision: 'allow' | 'deny' | 'allow_always' }
+  [IPC.WORKSPACE_FILES_LIST]: { workspaceRoot: string; relativePath?: string }
+  [IPC.WORKSPACE_FILE_PREVIEW]: { workspaceRoot: string; relativePath: string }
+  [IPC.WORKSPACE_FILE_EXPORT]: { workspaceRoot: string; relativePath: string }
+  [IPC.WORKSPACE_FILE_OPEN_EXTERNAL]: { workspaceRoot: string; relativePath: string }
+  [IPC.WORKSPACE_FILE_SHOW_IN_FOLDER]: { workspaceRoot: string; relativePath: string }
 }
 
 export interface IpcResponseMap {
@@ -92,6 +104,11 @@ export interface IpcResponseMap {
   [IPC.MEMORY_DELETE]: { id: string }
   [IPC.MEMORY_CLEAR]: { cleared: number }
   [IPC.PERMISSION_RESPOND]: { ok: true }
+  [IPC.WORKSPACE_FILES_LIST]: WorkspaceFileEntry[]
+  [IPC.WORKSPACE_FILE_PREVIEW]: WorkspaceFilePreview
+  [IPC.WORKSPACE_FILE_EXPORT]: { exported: boolean; path?: string }
+  [IPC.WORKSPACE_FILE_OPEN_EXTERNAL]: { opened: boolean; error?: string }
+  [IPC.WORKSPACE_FILE_SHOW_IN_FOLDER]: { opened: boolean }
 }
 
 export type IpcChannel = keyof IpcRequestMap

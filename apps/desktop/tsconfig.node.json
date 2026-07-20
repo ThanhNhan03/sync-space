@@ -26,6 +26,7 @@
       "@memory/*": ["src/memory/*"],
       "@permissions/*": ["src/permissions/*"],
       "@screen/*": ["src/screen/*"],
+      "@files/*": ["src/files/*"],
       "@providers/*": ["src/providers/*"],
       "@database/*": ["src/database/*"],
       "@ipc/*": ["src/ipc/*"]
@@ -43,6 +44,7 @@
     "src/memory/**/*",
     "src/permissions/**/*",
     "src/screen/**/*",
+    "src/files/**/*",
     "src/providers/**/*",
     "src/database/**/*",
     "src/ipc/**/*"

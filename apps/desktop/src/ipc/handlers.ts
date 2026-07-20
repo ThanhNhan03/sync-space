@@ -1,5 +1,5 @@
 import { basename, join } from 'node:path'
-import { mkdir, stat } from 'node:fs/promises'
+import { copyFile, mkdir, stat } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 
 import { dialog, ipcMain, shell, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
@@ -128,6 +128,35 @@ export function registerIpcHandlers(engine: SyncSpaceEngine, getWindow: () => Br
   handle(IPC.PERMISSION_RESPOND, (req) => {
     engine.respondPermission(req.requestId, req.decision)
     return { ok: true as const }
+  })
+
+  handle(IPC.WORKSPACE_FILES_LIST, (req) => engine.listWorkspaceDir(req.workspaceRoot, req.relativePath))
+  handle(IPC.WORKSPACE_FILE_PREVIEW, (req) => engine.previewWorkspaceFile(req.workspaceRoot, req.relativePath))
+
+  handle(IPC.WORKSPACE_FILE_EXPORT, async (req) => {
+    const window = getWindow()
+    const absolutePath = await engine.resolveWorkspaceFilePath(req.workspaceRoot, req.relativePath)
+    if (!window) {
+      return { exported: false }
+    }
+    const result = await dialog.showSaveDialog(window, { defaultPath: basename(absolutePath) })
+    if (result.canceled || !result.filePath) {
+      return { exported: false }
+    }
+    await copyFile(absolutePath, result.filePath)
+    return { exported: true, path: result.filePath }
+  })
+
+  handle(IPC.WORKSPACE_FILE_OPEN_EXTERNAL, async (req) => {
+    const absolutePath = await engine.resolveWorkspaceFilePath(req.workspaceRoot, req.relativePath)
+    const error = await shell.openPath(absolutePath)
+    return { opened: error === '', error: error || undefined }
+  })
+
+  handle(IPC.WORKSPACE_FILE_SHOW_IN_FOLDER, async (req) => {
+    const absolutePath = await engine.resolveWorkspaceFilePath(req.workspaceRoot, req.relativePath)
+    shell.showItemInFolder(absolutePath)
+    return { opened: true }
   })
 
   handle(IPC.SKILLS_LIST, (req) => engine.listSkills(req.workspaceRoot))

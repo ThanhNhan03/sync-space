@@ -15,7 +15,9 @@ import type {
   SkillInfo,
   SubagentSettings,
   ToolCallRequest,
-  Workspace
+  Workspace,
+  WorkspaceFileEntry,
+  WorkspaceFilePreview
 } from '@shared/types'
 import { DEFAULT_AGENTS, DEFAULT_SUBAGENT_SETTINGS } from '@shared/types'
 import { decidePermission, sanitizeRules } from '@permissions/permissionRules'
@@ -44,6 +46,11 @@ import { MemoryManager } from '@memory/MemoryManager'
 import { createMemoryTools } from '@memory/memoryTools'
 import { createScreenTools, SCREEN_TOOL_NAMES } from '@screen/screenTools'
 import type { VisionConfig } from '@screen/visionLocate'
+import {
+  listWorkspaceDir as listWorkspaceDirFiles,
+  readWorkspaceFilePreview,
+  resolveWorkspaceFilePath as resolveWorkspaceFilePathFiles
+} from '@files/workspaceFiles'
 
 import { SessionManager, type CreateSessionInput } from './SessionManager'
 
@@ -184,6 +191,19 @@ export class SyncSpaceEngine {
   /** The user-writable global skills directory (created if missing), for the "open folder" action. */
   ensureGlobalSkillsDir(): string {
     return this.skillsManager.ensureGlobalSkillsDir()
+  }
+
+  listWorkspaceDir(workspaceRoot: string, relativePath?: string): Promise<WorkspaceFileEntry[]> {
+    return listWorkspaceDirFiles(workspaceRoot, relativePath)
+  }
+
+  previewWorkspaceFile(workspaceRoot: string, relativePath: string): Promise<WorkspaceFilePreview> {
+    return readWorkspaceFilePreview(workspaceRoot, relativePath)
+  }
+
+  /** Resolve a workspace-relative path to an absolute one, for IPC handlers that then hand it to Electron's dialog/shell APIs. */
+  resolveWorkspaceFilePath(workspaceRoot: string, relativePath: string): Promise<string> {
+    return resolveWorkspaceFilePathFiles(workspaceRoot, relativePath)
   }
 
   /** Long-term memory defaults to on; only an explicit `false` disables it. */
