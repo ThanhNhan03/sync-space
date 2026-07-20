@@ -5,6 +5,7 @@ import { OpenRouterProvider } from './openrouter'
 import { ClaudeProvider } from './claude'
 import { GeminiProvider } from './gemini'
 import { MiniMaxProvider } from './minimax'
+import { MiMoProvider } from './mimo'
 
 /**
  * Instantiates the right LLMProvider for a ProviderConfig. Adding a new provider means
@@ -24,6 +25,8 @@ export function createProvider(config: ProviderConfig): LLMProvider {
       return new GeminiProvider(options)
     case 'minimax':
       return new MiniMaxProvider(options)
+    case 'mimo':
+      return new MiMoProvider(options)
     default: {
       const exhaustiveCheck: never = config.providerId
       throw new Error(`Unknown provider id: ${String(exhaustiveCheck)}`)

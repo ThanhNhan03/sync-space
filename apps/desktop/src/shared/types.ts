@@ -1,6 +1,6 @@
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool'
 
-export type ProviderId = 'openai' | 'claude' | 'gemini' | 'openrouter' | 'minimax'
+export type ProviderId = 'openai' | 'claude' | 'gemini' | 'openrouter' | 'minimax' | 'mimo'
 
 export interface ToolCallRequest {
   id: string

@@ -29,7 +29,8 @@ const PROVIDER_OPTIONS: { id: ProviderId; label: string }[] = [
   { id: 'claude', label: 'Claude' },
   { id: 'gemini', label: 'Gemini' },
   { id: 'openrouter', label: 'OpenRouter' },
-  { id: 'minimax', label: 'MiniMax' }
+  { id: 'minimax', label: 'MiniMax' },
+  { id: 'mimo', label: 'Xiaomi MiMo' }
 ]
 
 const THEME_OPTIONS: AppSettings['theme'][] = ['light', 'dark', 'system']
@@ -51,7 +52,8 @@ const PROVIDER_MODELS: Record<ProviderId, string[]> = {
     'deepseek/deepseek-v3.2',
     'mistralai/mistral-large'
   ],
-  minimax: ['MiniMax-M2', 'MiniMax-M2.5', 'MiniMax-M3']
+  minimax: ['MiniMax-M2', 'MiniMax-M2.5', 'MiniMax-M3'],
+  mimo: ['mimo-v2.5-pro', 'mimo-v2.5']
 }
 
 const CUSTOM_MODEL_VALUE = '__custom__'
@@ -97,7 +99,9 @@ export function SettingsPanel({
     settings.activeProviderId
   )
 
-  const knownModels = PROVIDER_MODELS[settings.activeProviderId]
+  // Guard against a persisted activeProviderId that isn't in our curated map (legacy/unknown
+  // value): fall back to an empty preset list so the panel never crashes — "Custom…" still works.
+  const knownModels = PROVIDER_MODELS[settings.activeProviderId] ?? []
   const isStoredCustomModel = activeConfig.model !== '' && !knownModels.includes(activeConfig.model)
 
   // Local "the user just picked Custom..." toggle, separate from whether the stored model
