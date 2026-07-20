@@ -120,9 +120,11 @@ app.whenReady().then(() => {
   const builtinSkillsDir = app.isPackaged
     ? join(process.resourcesPath, 'skills')
     : join(app.getAppPath(), 'resources', 'skills')
+  const screenshotsDir = join(app.getPath('userData'), 'screenshots')
   const engine = new SyncSpaceEngine(sessionManager, settingsRepo, memoriesRepo, {
     globalSkillsDir,
-    builtinSkillsDir
+    builtinSkillsDir,
+    screenshotsDir
   })
 
   registerIpcHandlers(engine, () => mainWindow)

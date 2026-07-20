@@ -42,6 +42,8 @@ import { createUseSkillTool } from '@skills/useSkillTool'
 import { buildSkillsPromptSection } from '@skills/skillsPrompt'
 import { MemoryManager } from '@memory/MemoryManager'
 import { createMemoryTools } from '@memory/memoryTools'
+import { createScreenTools, SCREEN_TOOL_NAMES } from '@screen/screenTools'
+import type { VisionConfig } from '@screen/visionLocate'
 
 import { SessionManager, type CreateSessionInput } from './SessionManager'
 
@@ -50,6 +52,8 @@ export interface EngineOptions {
   globalSkillsDir: string
   /** Read-only skills shipped with the app, if present. */
   builtinSkillsDir?: string
+  /** Directory where screen-capture screenshots are written. */
+  screenshotsDir: string
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -107,11 +111,16 @@ export class SyncSpaceEngine {
       () => this.getSettings().disabledSkillIds ?? []
     )
     const memoryTools = createMemoryTools(this.memoryManager, () => this.isMemoryEnabled())
+    const screenTools = createScreenTools({
+      screenshotsDir: options.screenshotsDir,
+      getVisionConfig: () => this.getVisionConfig()
+    })
     this.toolManager = new ToolManager([
       ...allTools,
       useSkillTool,
       ...memoryTools,
-      createSpawnSubagentTool()
+      createSpawnSubagentTool(),
+      ...screenTools
     ])
     this.agentRunner = new AgentRunner(this.toolManager)
 
@@ -180,6 +189,24 @@ export class SyncSpaceEngine {
   /** Long-term memory defaults to on; only an explicit `false` disables it. */
   private isMemoryEnabled(): boolean {
     return this.getSettings().memoryEnabled !== false
+  }
+
+  /** Screen control is invasive, so it is opt-in (off unless explicitly enabled). */
+  private isScreenControlEnabled(): boolean {
+    return this.getSettings().screenControlEnabled === true
+  }
+
+  /** Vision credentials for locate_on_screen, from the configured Claude provider (or null). */
+  private getVisionConfig(): VisionConfig | null {
+    const claude = this.getSettings().providers.claude
+    if (!claude?.apiKey) {
+      return null
+    }
+    return {
+      apiKey: claude.apiKey,
+      baseUrl: claude.baseUrl || undefined,
+      model: claude.model || 'claude-sonnet-5'
+    }
   }
 
   /** Subagent controls, merged over defaults and clamped to safe bounds. */
@@ -436,7 +463,10 @@ export class SyncSpaceEngine {
             history: [
               { id: randomUUID(), sessionId: session.id, role: 'user', content: input.task, createdAt: Date.now() }
             ],
-            excludeToolNames: [SPAWN_SUBAGENT_TOOL_NAME],
+            excludeToolNames: [
+              SPAWN_SUBAGENT_TOOL_NAME,
+              ...(this.isScreenControlEnabled() ? [] : SCREEN_TOOL_NAMES)
+            ],
             checkToolPermission,
             onEvent: (event) => {
               if (
@@ -468,7 +498,10 @@ export class SyncSpaceEngine {
         systemPromptSuffix,
         // Only expose subagents when enabled; otherwise hide the tool from the orchestrator.
         spawnSubagent: subagentSettings.enabled ? spawnSubagent : undefined,
-        excludeToolNames: subagentSettings.enabled ? [] : [SPAWN_SUBAGENT_TOOL_NAME],
+        excludeToolNames: [
+          ...(subagentSettings.enabled ? [] : [SPAWN_SUBAGENT_TOOL_NAME]),
+          ...(this.isScreenControlEnabled() ? [] : SCREEN_TOOL_NAMES)
+        ],
         checkToolPermission,
         history,
         onEvent,

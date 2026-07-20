@@ -25,6 +25,7 @@
       "@skills/*": ["src/skills/*"],
       "@memory/*": ["src/memory/*"],
       "@permissions/*": ["src/permissions/*"],
+      "@screen/*": ["src/screen/*"],
       "@providers/*": ["src/providers/*"],
       "@database/*": ["src/database/*"],
       "@ipc/*": ["src/ipc/*"]
@@ -41,6 +42,7 @@
     "src/skills/**/*",
     "src/memory/**/*",
     "src/permissions/**/*",
+    "src/screen/**/*",
     "src/providers/**/*",
     "src/database/**/*",
     "src/ipc/**/*"

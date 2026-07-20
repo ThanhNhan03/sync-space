@@ -15,6 +15,7 @@ import { SkillsSection } from './SkillsSection'
 import { MemorySection } from './MemorySection'
 import { AgentsSection } from './AgentsSection'
 import { PermissionsSection } from './PermissionsSection'
+import { ScreenSection } from './ScreenSection'
 
 export interface SettingsPanelProps {
   settings: AppSettings
@@ -58,7 +59,7 @@ const PROVIDER_MODELS: Record<ProviderId, string[]> = {
 
 const CUSTOM_MODEL_VALUE = '__custom__'
 
-type SettingsTab = 'general' | 'mcp' | 'skills' | 'memory' | 'agents' | 'permissions'
+type SettingsTab = 'general' | 'mcp' | 'skills' | 'memory' | 'agents' | 'screen' | 'permissions'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: 'General' },
@@ -66,6 +67,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'skills', label: 'Skills' },
   { id: 'memory', label: 'Memory' },
   { id: 'agents', label: 'Agents' },
+  { id: 'screen', label: 'Screen' },
   { id: 'permissions', label: 'Permissions' }
 ]
 
@@ -341,6 +343,13 @@ export function SettingsPanel({
                 subagentSettings={settings.subagentSettings ?? DEFAULT_SUBAGENT_SETTINGS}
                 onSubagentSettingsChange={handleSubagentSettingsChange}
                 workspaceRoot={workspaceRoot}
+              />
+            )}
+
+            {activeTab === 'screen' && (
+              <ScreenSection
+                enabled={settings.screenControlEnabled === true}
+                onToggleEnabled={(screenControlEnabled) => onChange({ ...settings, screenControlEnabled })}
               />
             )}
 

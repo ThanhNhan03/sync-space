@@ -286,7 +286,18 @@ export const DEFAULT_PERMISSION_RULES: PermissionRule[] = [
   { tool: 'create_file', action: 'ask' },
   { tool: 'delete_file', action: 'ask' },
   { tool: 'execute_terminal', action: 'ask' },
-  { tool: 'spawn_subagent', action: 'ask' }
+  { tool: 'spawn_subagent', action: 'ask' },
+  // Screen control (computer use) — all ask by default; read-only screen reads included for clarity.
+  { tool: 'screen_capture', action: 'ask' },
+  { tool: 'screen_info', action: 'allow' },
+  { tool: 'get_cursor_position', action: 'allow' },
+  { tool: 'mouse_move', action: 'ask' },
+  { tool: 'mouse_click', action: 'ask' },
+  { tool: 'mouse_drag', action: 'ask' },
+  { tool: 'scroll', action: 'ask' },
+  { tool: 'type_text', action: 'ask' },
+  { tool: 'key_press', action: 'ask' },
+  { tool: 'locate_on_screen', action: 'ask' }
 ]
 
 /** Built-in tools shown in the Permissions settings tab, with friendly labels. */
@@ -303,7 +314,17 @@ export const PERMISSION_MANAGED_TOOLS: { name: string; label: string }[] = [
   { name: 'create_file', label: 'Create file' },
   { name: 'delete_file', label: 'Delete file' },
   { name: 'execute_terminal', label: 'Run terminal command' },
-  { name: 'spawn_subagent', label: 'Spawn subagent' }
+  { name: 'spawn_subagent', label: 'Spawn subagent' },
+  { name: 'screen_capture', label: 'Capture screen' },
+  { name: 'screen_info', label: 'Read screen size' },
+  { name: 'get_cursor_position', label: 'Read cursor position' },
+  { name: 'mouse_move', label: 'Move mouse' },
+  { name: 'mouse_click', label: 'Click mouse' },
+  { name: 'mouse_drag', label: 'Drag mouse' },
+  { name: 'scroll', label: 'Scroll' },
+  { name: 'type_text', label: 'Type text' },
+  { name: 'key_press', label: 'Press keys' },
+  { name: 'locate_on_screen', label: 'Locate element (vision)' }
 ]
 
 export interface AppSettings {
@@ -326,6 +347,12 @@ export interface AppSettings {
   agents?: AgentDefinition[]
   /** Global subagent controls (enable, concurrency, default timeout). */
   subagentSettings?: SubagentSettings
+  /**
+   * Whether the agent may control the screen (capture + mouse/keyboard). Off by default because
+   * it is invasive; when on, the individual screen tools are still gated by permission rules.
+   * Windows-only.
+   */
+  screenControlEnabled?: boolean
 }
 
 /**
