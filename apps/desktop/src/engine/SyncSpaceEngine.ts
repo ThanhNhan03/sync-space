@@ -10,12 +10,15 @@ import type {
   McpServerStatus,
   MemoryEntry,
   MessageAttachment,
+  PermissionRule,
   SessionSummary,
   SkillInfo,
   SubagentSettings,
+  ToolCallRequest,
   Workspace
 } from '@shared/types'
 import { DEFAULT_AGENTS, DEFAULT_SUBAGENT_SETTINGS } from '@shared/types'
+import { decidePermission, sanitizeRules } from '@permissions/permissionRules'
 import type { SettingsRepository, MemoriesRepository } from '@database/repositories'
 import { allTools } from '@tools/index'
 import { ToolManager } from '@tools/ToolManager'
@@ -77,6 +80,13 @@ export class SyncSpaceEngine {
   private readonly memoryManager: MemoryManager
   /** Shared counter bounding concurrent subagents across all sessions. */
   private readonly subagentConcurrency = { active: 0 }
+  /** Session-scoped "always allow" tool decisions (lowercased tool names). */
+  private readonly permissionAlwaysAllow = new Map<string, Set<string>>()
+  /** In-flight approval prompts awaiting a renderer response. */
+  private readonly pendingPermissions = new Map<
+    string,
+    { sessionId: string; toolName: string; resolve: (decision: 'allow' | 'deny') => void }
+  >()
   private mcpStatusListener: ((status: McpServerStatus[]) => void) | null = null
 
   constructor(
@@ -247,6 +257,8 @@ export class SyncSpaceEngine {
   }
 
   deleteSession(sessionId: string): void {
+    this.permissionAlwaysAllow.delete(sessionId)
+    this.denyPendingPermissions(sessionId)
     this.sessionManager.deleteSession(sessionId)
   }
 
@@ -264,7 +276,72 @@ export class SyncSpaceEngine {
       return false
     }
     this.cancelledSessions.add(sessionId)
+    // Unblock any approval prompt in flight so the run can stop instead of hanging.
+    this.denyPendingPermissions(sessionId)
     return true
+  }
+
+  /** Current permission rules, sanitized (falls back to defaults). */
+  getPermissionRules(): PermissionRule[] {
+    return sanitizeRules(this.getSettings().permissionRules)
+  }
+
+  /**
+   * Decide whether a tool may run, prompting the user over the stream channel when the rule is
+   * 'ask'. Resolves to 'allow' or 'deny' (after any round-trip). Bound to the parent session's
+   * onEvent so subagent prompts also reach the UI.
+   */
+  private checkToolPermission(
+    sessionId: string,
+    toolCall: ToolCallRequest,
+    onEvent: (event: AgentStreamEvent) => void
+  ): Promise<'allow' | 'deny'> {
+    const decision = decidePermission(
+      this.getPermissionRules(),
+      this.permissionAlwaysAllow.get(sessionId),
+      toolCall.name,
+      toolCall.arguments
+    )
+    if (decision !== 'ask') {
+      return Promise.resolve(decision)
+    }
+    return new Promise((resolve) => {
+      const requestId = randomUUID()
+      this.pendingPermissions.set(requestId, { sessionId, toolName: toolCall.name, resolve })
+      onEvent({
+        type: 'permission_request',
+        sessionId,
+        requestId,
+        toolName: toolCall.name,
+        arguments: toolCall.arguments
+      })
+    })
+  }
+
+  /** Renderer's answer to a permission prompt. 'allow_always' remembers the tool for the session. */
+  respondPermission(requestId: string, decision: 'allow' | 'deny' | 'allow_always'): void {
+    const pending = this.pendingPermissions.get(requestId)
+    if (!pending) {
+      return
+    }
+    this.pendingPermissions.delete(requestId)
+    if (decision === 'allow_always') {
+      const set = this.permissionAlwaysAllow.get(pending.sessionId) ?? new Set<string>()
+      set.add(pending.toolName.toLowerCase())
+      this.permissionAlwaysAllow.set(pending.sessionId, set)
+      pending.resolve('allow')
+    } else {
+      pending.resolve(decision)
+    }
+  }
+
+  private denyPendingPermissions(sessionId: string): void {
+    for (const [requestId, pending] of this.pendingPermissions.entries()) {
+      if (pending.sessionId === sessionId) {
+        this.pendingPermissions.delete(requestId)
+        pending.resolve('deny')
+      }
+    }
   }
 
   async sendMessage(params: SendMessageParams, onEvent: (event: AgentStreamEvent) => void): Promise<void> {
@@ -322,6 +399,11 @@ export class SyncSpaceEngine {
         : ''
     const systemPromptSuffix = `${skillsSection}${memorySection}${agentsSection}`
 
+    // Bound once and shared by the parent run and every child run so approval prompts always
+    // reach the UI and "always allow" decisions apply everywhere within this session.
+    const checkToolPermission = (toolCall: ToolCallRequest): Promise<'allow' | 'deny'> =>
+      this.checkToolPermission(session.id, toolCall, onEvent)
+
     // Capability handed to the run's tools: run a focused child agent to completion. The child
     // reuses this session's provider/model/tools but starts from just its task (no parent
     // history), its messages are ephemeral (never persisted), and it is denied spawn_subagent
@@ -355,6 +437,7 @@ export class SyncSpaceEngine {
               { id: randomUUID(), sessionId: session.id, role: 'user', content: input.task, createdAt: Date.now() }
             ],
             excludeToolNames: [SPAWN_SUBAGENT_TOOL_NAME],
+            checkToolPermission,
             onEvent: (event) => {
               if (
                 event.type === 'message_done' &&
@@ -386,6 +469,7 @@ export class SyncSpaceEngine {
         // Only expose subagents when enabled; otherwise hide the tool from the orchestrator.
         spawnSubagent: subagentSettings.enabled ? spawnSubagent : undefined,
         excludeToolNames: subagentSettings.enabled ? [] : [SPAWN_SUBAGENT_TOOL_NAME],
+        checkToolPermission,
         history,
         onEvent,
         persistMessage: (message) => this.sessionManager.appendMessage(message),

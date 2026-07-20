@@ -254,11 +254,65 @@ export const DEFAULT_SUBAGENT_SETTINGS: SubagentSettings = {
   defaultTimeoutSeconds: 120
 }
 
+/** What to do when the agent tries to run a tool: run it, ask the user, or block it. */
+export type PermissionAction = 'allow' | 'ask' | 'deny'
+
+/**
+ * A tool-permission rule. The first rule whose `tool` matches (case-insensitive) and whose
+ * optional `pattern` (glob-ish, `*` = any substring) matches the stringified arguments decides
+ * the action. Unmatched tools default to 'ask'. Adapted from OpenCowork's PermissionRule.
+ */
+export interface PermissionRule {
+  tool: string
+  pattern?: string
+  action: PermissionAction
+}
+
+/**
+ * Default policy: read-only/benign tools run automatically; anything that writes files, runs
+ * shell commands, or spawns autonomous work asks first. Unlisted tools (including MCP tools)
+ * fall through to 'ask'.
+ */
+export const DEFAULT_PERMISSION_RULES: PermissionRule[] = [
+  { tool: 'read_file', action: 'allow' },
+  { tool: 'list_directory', action: 'allow' },
+  { tool: 'search_workspace', action: 'allow' },
+  { tool: 'git_status', action: 'allow' },
+  { tool: 'git_diff', action: 'allow' },
+  { tool: 'use_skill', action: 'allow' },
+  { tool: 'recall', action: 'allow' },
+  { tool: 'remember', action: 'allow' },
+  { tool: 'write_file', action: 'ask' },
+  { tool: 'create_file', action: 'ask' },
+  { tool: 'delete_file', action: 'ask' },
+  { tool: 'execute_terminal', action: 'ask' },
+  { tool: 'spawn_subagent', action: 'ask' }
+]
+
+/** Built-in tools shown in the Permissions settings tab, with friendly labels. */
+export const PERMISSION_MANAGED_TOOLS: { name: string; label: string }[] = [
+  { name: 'read_file', label: 'Read file' },
+  { name: 'list_directory', label: 'List directory' },
+  { name: 'search_workspace', label: 'Search workspace' },
+  { name: 'git_status', label: 'Git status' },
+  { name: 'git_diff', label: 'Git diff' },
+  { name: 'use_skill', label: 'Use skill' },
+  { name: 'recall', label: 'Recall memory' },
+  { name: 'remember', label: 'Remember memory' },
+  { name: 'write_file', label: 'Write file' },
+  { name: 'create_file', label: 'Create file' },
+  { name: 'delete_file', label: 'Delete file' },
+  { name: 'execute_terminal', label: 'Run terminal command' },
+  { name: 'spawn_subagent', label: 'Spawn subagent' }
+]
+
 export interface AppSettings {
   activeProviderId: ProviderId
   providers: Partial<Record<ProviderId, ProviderConfig>>
   theme: 'light' | 'dark' | 'system'
   activeWorkspaceId?: string
+  /** Per-tool run/ask/block rules. When undefined, DEFAULT_PERMISSION_RULES apply. */
+  permissionRules?: PermissionRule[]
   /** User-configured MCP servers whose tools are exposed to the agent. */
   mcpServers?: McpServerConfig[]
   /** Skill ids (== names) the user has turned off; all discovered skills are enabled by default. */
@@ -288,6 +342,14 @@ export type AgentStreamEvent =
   | { type: 'message_done'; sessionId: string; message: ChatMessage }
   | { type: 'run_done'; sessionId: string }
   | { type: 'error'; sessionId: string; message: string }
+  /** The agent wants to run a tool that requires user approval; the UI must respond. */
+  | {
+      type: 'permission_request'
+      sessionId: string
+      requestId: string
+      toolName: string
+      arguments: Record<string, unknown>
+    }
   /** Progress from a child agent spawned via spawn_subagent, surfaced live in the UI. */
   | {
       type: 'subagent_progress'

@@ -27,6 +27,11 @@ export interface AgentRunParams {
   spawnSubagent?: (request: SubagentRequest) => Promise<SubagentResult>
   /** Tool names to hide from the model this run (e.g. spawn_subagent inside a child run). */
   excludeToolNames?: string[]
+  /**
+   * Consulted before each tool runs. Resolves 'allow' or 'deny' after any user-approval
+   * round-trip. When omitted, all tools run (no gating).
+   */
+  checkToolPermission?: (toolCall: ToolCallRequest) => Promise<'allow' | 'deny'>
   onEvent: (event: AgentStreamEvent) => void
   persistMessage: (message: ChatMessage) => void
   isCancelled: () => boolean
@@ -128,7 +133,26 @@ export class AgentRunner {
           return
         }
         onEvent({ type: 'tool_call_start', sessionId, toolCall })
-        const result = await this.toolManager.execute(toolCall, toolContext)
+
+        // Permission gate: may block on a user-approval round-trip before the tool runs.
+        const decision = params.checkToolPermission
+          ? await params.checkToolPermission(toolCall)
+          : 'allow'
+        if (params.isCancelled()) {
+          onEvent({ type: 'run_done', sessionId })
+          return
+        }
+
+        const result: ToolCallResult =
+          decision === 'deny'
+            ? {
+                id: toolCall.id,
+                name: toolCall.name,
+                ok: false,
+                isError: true,
+                content: `Tool "${toolCall.name}" was not run: blocked by your permission settings.`
+              }
+            : await this.toolManager.execute(toolCall, toolContext)
         results.push(result)
         onEvent({ type: 'tool_call_result', sessionId, result })
       }

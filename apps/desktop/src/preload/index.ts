@@ -59,6 +59,9 @@ const api = {
 
   clearMemories: (workspaceRoot?: string) => invoke(IPC.MEMORY_CLEAR, { workspaceRoot }),
 
+  respondPermission: (requestId: string, decision: 'allow' | 'deny' | 'allow_always') =>
+    invoke(IPC.PERMISSION_RESPOND, { requestId, decision }),
+
   /** Subscribes to Agent Runner stream events; returns an unsubscribe function. */
   onStreamEvent(callback: (event: AgentStreamEvent) => void): () => void {
     const listener = (_event: unknown, streamEvent: AgentStreamEvent): void => callback(streamEvent)

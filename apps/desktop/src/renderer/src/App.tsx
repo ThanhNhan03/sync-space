@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChatInput, MessageList } from './components/Chat'
+import { PermissionPrompt } from './components/Chat/PermissionPrompt'
 import { SessionList, WorkspaceBadge } from './components/Sidebar'
 import { SettingsPanel } from './components/Settings'
 import { useSyncSpace } from './hooks/useSyncSpace'
@@ -111,6 +112,15 @@ export default function App(): JSX.Element {
           workspaceRoot={s.workspace?.rootPath}
           onChange={s.onUpdateSettings}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {s.activePermission && (
+        <PermissionPrompt
+          key={s.activePermission.requestId}
+          toolName={s.activePermission.toolName}
+          args={s.activePermission.arguments}
+          onDecision={(decision) => s.onRespondPermission(s.activePermission!.requestId, decision)}
         />
       )}
     </div>

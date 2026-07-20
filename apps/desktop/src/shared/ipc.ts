@@ -34,7 +34,8 @@ export const IPC = {
   MEMORY_LIST: 'memory:list',
   MEMORY_ADD: 'memory:add',
   MEMORY_DELETE: 'memory:delete',
-  MEMORY_CLEAR: 'memory:clear'
+  MEMORY_CLEAR: 'memory:clear',
+  PERMISSION_RESPOND: 'permission:respond'
 } as const
 
 /** Main -> Renderer, fire-and-forget push channels. */
@@ -65,6 +66,7 @@ export interface IpcRequestMap {
   [IPC.MEMORY_ADD]: { workspaceRoot: string; category: MemoryCategory; content: string }
   [IPC.MEMORY_DELETE]: { id: string }
   [IPC.MEMORY_CLEAR]: { workspaceRoot?: string }
+  [IPC.PERMISSION_RESPOND]: { requestId: string; decision: 'allow' | 'deny' | 'allow_always' }
 }
 
 export interface IpcResponseMap {
@@ -89,6 +91,7 @@ export interface IpcResponseMap {
   [IPC.MEMORY_ADD]: MemoryEntry
   [IPC.MEMORY_DELETE]: { id: string }
   [IPC.MEMORY_CLEAR]: { cleared: number }
+  [IPC.PERMISSION_RESPOND]: { ok: true }
 }
 
 export type IpcChannel = keyof IpcRequestMap

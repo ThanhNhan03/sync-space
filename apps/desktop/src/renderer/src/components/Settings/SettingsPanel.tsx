@@ -4,15 +4,17 @@ import type {
   AgentDefinition,
   AppSettings,
   McpServerConfig,
+  PermissionRule,
   ProviderConfig,
   ProviderId,
   SubagentSettings
 } from '@shared/types'
-import { DEFAULT_AGENTS, DEFAULT_SUBAGENT_SETTINGS } from '@shared/types'
+import { DEFAULT_AGENTS, DEFAULT_PERMISSION_RULES, DEFAULT_SUBAGENT_SETTINGS } from '@shared/types'
 import { McpServersSection } from './McpServersSection'
 import { SkillsSection } from './SkillsSection'
 import { MemorySection } from './MemorySection'
 import { AgentsSection } from './AgentsSection'
+import { PermissionsSection } from './PermissionsSection'
 
 export interface SettingsPanelProps {
   settings: AppSettings
@@ -54,14 +56,15 @@ const PROVIDER_MODELS: Record<ProviderId, string[]> = {
 
 const CUSTOM_MODEL_VALUE = '__custom__'
 
-type SettingsTab = 'general' | 'mcp' | 'skills' | 'memory' | 'agents'
+type SettingsTab = 'general' | 'mcp' | 'skills' | 'memory' | 'agents' | 'permissions'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'mcp', label: 'MCP Servers' },
   { id: 'skills', label: 'Skills' },
   { id: 'memory', label: 'Memory' },
-  { id: 'agents', label: 'Agents' }
+  { id: 'agents', label: 'Agents' },
+  { id: 'permissions', label: 'Permissions' }
 ]
 
 function emptyProviderConfig(providerId: ProviderId): ProviderConfig {
@@ -160,6 +163,10 @@ export function SettingsPanel({
 
   const handleSubagentSettingsChange = (subagentSettings: SubagentSettings): void => {
     onChange({ ...settings, subagentSettings })
+  }
+
+  const handlePermissionRulesChange = (permissionRules: PermissionRule[]): void => {
+    onChange({ ...settings, permissionRules })
   }
 
   return (
@@ -330,6 +337,13 @@ export function SettingsPanel({
                 subagentSettings={settings.subagentSettings ?? DEFAULT_SUBAGENT_SETTINGS}
                 onSubagentSettingsChange={handleSubagentSettingsChange}
                 workspaceRoot={workspaceRoot}
+              />
+            )}
+
+            {activeTab === 'permissions' && (
+              <PermissionsSection
+                rules={settings.permissionRules ?? DEFAULT_PERMISSION_RULES}
+                onChange={handlePermissionRulesChange}
               />
             )}
           </div>

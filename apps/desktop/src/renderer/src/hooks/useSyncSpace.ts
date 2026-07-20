@@ -39,6 +39,11 @@ export function useSyncSpace() {
     Record<string, { id: string; task: string; toolName?: string }>
   >({})
 
+  // Queue of tool-approval prompts awaiting the user's decision (usually 0 or 1).
+  const [pendingPermissions, setPendingPermissions] = useState<
+    { requestId: string; toolName: string; arguments: Record<string, unknown> }[]
+  >([])
+
   const activeSessionIdRef = useRef<string | null>(null)
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
@@ -95,6 +100,7 @@ export function useSyncSpace() {
     setIsThinking(false)
     setStreamingMessageId(null)
     setSubagents({})
+    setPendingPermissions([])
     void (async () => {
       const loaded = await window.syncspace.getSessionMessages(activeSessionId)
       if (cancelled) return
@@ -178,17 +184,25 @@ export function useSyncSpace() {
             }
           })
           break
+        case 'permission_request':
+          setPendingPermissions((prev) => [
+            ...prev,
+            { requestId: event.requestId, toolName: event.toolName, arguments: event.arguments }
+          ])
+          break
         case 'run_done':
           setIsSending(false)
           setIsThinking(false)
           setStreamingMessageId(null)
           setSubagents({})
+          setPendingPermissions([])
           break
         case 'error':
           setIsSending(false)
           setIsThinking(false)
           setStreamingMessageId(null)
           setSubagents({})
+          setPendingPermissions([])
           setError(event.message)
           break
       }
@@ -291,6 +305,14 @@ export function useSyncSpace() {
     void window.syncspace.cancelChat(activeSessionId)
   }, [activeSessionId])
 
+  const onRespondPermission = useCallback(
+    (requestId: string, decision: 'allow' | 'deny' | 'allow_always') => {
+      void window.syncspace.respondPermission(requestId, decision)
+      setPendingPermissions((prev) => prev.filter((p) => p.requestId !== requestId))
+    },
+    []
+  )
+
   return {
     settings,
     onUpdateSettings,
@@ -316,6 +338,8 @@ export function useSyncSpace() {
     onCancel,
     error,
     dismissError: () => setError(null),
-    activeSubagents: Object.values(subagents)
+    activeSubagents: Object.values(subagents),
+    activePermission: pendingPermissions[0] ?? null,
+    onRespondPermission
   }
 }

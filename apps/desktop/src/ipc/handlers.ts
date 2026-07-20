@@ -125,6 +125,11 @@ export function registerIpcHandlers(engine: SyncSpaceEngine, getWindow: () => Br
   })
   handle(IPC.MEMORY_CLEAR, (req) => ({ cleared: engine.clearMemories(req.workspaceRoot) }))
 
+  handle(IPC.PERMISSION_RESPOND, (req) => {
+    engine.respondPermission(req.requestId, req.decision)
+    return { ok: true as const }
+  })
+
   handle(IPC.SKILLS_LIST, (req) => engine.listSkills(req.workspaceRoot))
   handle(IPC.SKILLS_SET_ENABLED, (req) =>
     engine.setSkillEnabled(req.id, req.enabled, req.workspaceRoot)
