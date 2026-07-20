@@ -77,6 +77,10 @@ const api = {
   showWorkspaceFileInFolder: (workspaceRoot: string, relativePath: string) =>
     invoke(IPC.WORKSPACE_FILE_SHOW_IN_FOLDER, { workspaceRoot, relativePath }),
 
+  getCompactionStatus: (sessionId: string) => invoke(IPC.COMPACTION_STATUS, { sessionId }),
+
+  runCompactionNow: (sessionId: string) => invoke(IPC.COMPACTION_RUN_NOW, { sessionId }),
+
   /** Subscribes to Agent Runner stream events; returns an unsubscribe function. */
   onStreamEvent(callback: (event: AgentStreamEvent) => void): () => void {
     const listener = (_event: unknown, streamEvent: AgentStreamEvent): void => callback(streamEvent)

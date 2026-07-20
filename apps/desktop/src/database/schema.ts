@@ -45,4 +45,12 @@ CREATE TABLE IF NOT EXISTS memories (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_memories_workspace_root ON memories(workspace_root);
+
+CREATE TABLE IF NOT EXISTS session_compaction (
+  session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+  summary TEXT NOT NULL,
+  summarized_through_message_id TEXT NOT NULL,
+  summarized_through_created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 `

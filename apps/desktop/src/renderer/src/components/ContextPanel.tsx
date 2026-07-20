@@ -1,4 +1,5 @@
-import type { SessionSummary, Workspace } from '@shared/types'
+import { useCallback, useEffect, useState } from 'react'
+import type { CompactionStatus, SessionSummary, Workspace } from '@shared/types'
 
 export interface ContextPanelProps {
   workspace: Workspace | null
@@ -35,6 +36,34 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
  * matching how the left sidebar collapses.
  */
 export function ContextPanel({ workspace, session, messageCount, open }: ContextPanelProps): JSX.Element {
+  const sessionId = session?.id
+  const [compactionStatus, setCompactionStatus] = useState<CompactionStatus | null>(null)
+  const [isCompactingNow, setIsCompactingNow] = useState(false)
+
+  const refreshCompactionStatus = useCallback(async () => {
+    if (!sessionId) {
+      setCompactionStatus(null)
+      return
+    }
+    setCompactionStatus(await window.syncspace.getCompactionStatus(sessionId))
+  }, [sessionId])
+
+  // Refresh on session switch, and again whenever the message count changes -- a cheap free
+  // signal that a run just completed and status may have moved.
+  useEffect(() => {
+    void refreshCompactionStatus()
+  }, [refreshCompactionStatus, messageCount])
+
+  const handleCompactNow = async (): Promise<void> => {
+    if (!sessionId) return
+    setIsCompactingNow(true)
+    try {
+      setCompactionStatus(await window.syncspace.runCompactionNow(sessionId))
+    } finally {
+      setIsCompactingNow(false)
+    }
+  }
+
   return (
     <aside
       className={`flex shrink-0 flex-col overflow-hidden border-l border-border-subtle bg-background-secondary transition-all ${
@@ -61,6 +90,29 @@ export function ContextPanel({ workspace, session, messageCount, open }: Context
                 />
                 <Row label="Model" value={session?.model || '—'} mono />
                 <Row label="Messages" value={String(messageCount)} />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border-subtle bg-surface p-3 shadow-soft">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Row
+                    label="Compaction"
+                    value={
+                      compactionStatus?.compacted
+                        ? `${compactionStatus.summarizedMessageCount ?? '?'} messages summarized`
+                        : 'Not yet compacted'
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleCompactNow()}
+                    disabled={!sessionId || isCompactingNow}
+                    className="shrink-0 rounded-md bg-surface-muted px-2 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isCompactingNow ? 'Compacting…' : 'Compact now'}
+                  </button>
+                </div>
               </div>
             </div>
 

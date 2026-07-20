@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   ChatMessage,
+  CompactionStatus,
   McpPreset,
   McpServerStatus,
   MemoryCategory,
@@ -42,7 +43,9 @@ export const IPC = {
   WORKSPACE_FILE_PREVIEW: 'workspace-files:preview',
   WORKSPACE_FILE_EXPORT: 'workspace-files:export',
   WORKSPACE_FILE_OPEN_EXTERNAL: 'workspace-files:open-external',
-  WORKSPACE_FILE_SHOW_IN_FOLDER: 'workspace-files:show-in-folder'
+  WORKSPACE_FILE_SHOW_IN_FOLDER: 'workspace-files:show-in-folder',
+  COMPACTION_STATUS: 'compaction:status',
+  COMPACTION_RUN_NOW: 'compaction:run-now'
 } as const
 
 /** Main -> Renderer, fire-and-forget push channels. */
@@ -79,6 +82,8 @@ export interface IpcRequestMap {
   [IPC.WORKSPACE_FILE_EXPORT]: { workspaceRoot: string; relativePath: string }
   [IPC.WORKSPACE_FILE_OPEN_EXTERNAL]: { workspaceRoot: string; relativePath: string }
   [IPC.WORKSPACE_FILE_SHOW_IN_FOLDER]: { workspaceRoot: string; relativePath: string }
+  [IPC.COMPACTION_STATUS]: { sessionId: string }
+  [IPC.COMPACTION_RUN_NOW]: { sessionId: string }
 }
 
 export interface IpcResponseMap {
@@ -109,6 +114,8 @@ export interface IpcResponseMap {
   [IPC.WORKSPACE_FILE_EXPORT]: { exported: boolean; path?: string }
   [IPC.WORKSPACE_FILE_OPEN_EXTERNAL]: { opened: boolean; error?: string }
   [IPC.WORKSPACE_FILE_SHOW_IN_FOLDER]: { opened: boolean }
+  [IPC.COMPACTION_STATUS]: CompactionStatus
+  [IPC.COMPACTION_RUN_NOW]: CompactionStatus
 }
 
 export type IpcChannel = keyof IpcRequestMap

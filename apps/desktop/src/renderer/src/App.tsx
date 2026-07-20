@@ -130,6 +130,13 @@ export default function App(): JSX.Element {
                 isThinking={s.isThinking}
               />
 
+              {s.isCompacting && (
+                <div className="flex items-center gap-2 border-t border-border-subtle bg-background px-4 py-2 text-xs text-text-secondary">
+                  <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+                  <span>Compacting conversation…</span>
+                </div>
+              )}
+
               {s.activeSubagents.length > 0 && (
                 <div className="space-y-1 border-t border-border-subtle bg-background px-4 py-2">
                   {s.activeSubagents.map((sub) => (

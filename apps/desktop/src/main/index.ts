@@ -4,6 +4,7 @@ import { app, BrowserWindow, session, shell } from 'electron'
 
 import { createDatabase } from '@database/db'
 import {
+  CompactionRepository,
   MemoriesRepository,
   MessagesRepository,
   SessionsRepository,
@@ -113,6 +114,7 @@ app.whenReady().then(() => {
   )
   const settingsRepo = new SettingsRepository(db)
   const memoriesRepo = new MemoriesRepository(db)
+  const compactionRepo = new CompactionRepository(db)
 
   // Global skills live under userData (user-writable); built-in skills ship with the app --
   // in dev they sit in the source tree, in production they're extracted via extraResources.
@@ -121,7 +123,7 @@ app.whenReady().then(() => {
     ? join(process.resourcesPath, 'skills')
     : join(app.getAppPath(), 'resources', 'skills')
   const screenshotsDir = join(app.getPath('userData'), 'screenshots')
-  const engine = new SyncSpaceEngine(sessionManager, settingsRepo, memoriesRepo, {
+  const engine = new SyncSpaceEngine(sessionManager, settingsRepo, memoriesRepo, compactionRepo, {
     globalSkillsDir,
     builtinSkillsDir,
     screenshotsDir

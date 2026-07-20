@@ -331,6 +331,28 @@ export interface WorkspaceFilePreview {
   truncated?: boolean
 }
 
+/** Global controls for conversation compaction (rolling summarization of older turns). */
+export interface CompactionSettings {
+  enabled: boolean
+  /** Once the uncompacted tail exceeds this many characters, an older prefix is summarized. */
+  thresholdChars: number
+  /** How much of the tail (in characters) stays verbatim after a compaction pass. */
+  keepRecentChars: number
+}
+
+export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
+  enabled: true,
+  thresholdChars: 60_000,
+  keepRecentChars: 20_000
+}
+
+/** Whether/how much of a session's history has been folded into a rolling summary. */
+export interface CompactionStatus {
+  compacted: boolean
+  summarizedMessageCount?: number
+  updatedAt?: number
+}
+
 /** Built-in tools shown in the Permissions settings tab, with friendly labels. */
 export const PERMISSION_MANAGED_TOOLS: { name: string; label: string }[] = [
   { name: 'read_file', label: 'Read file' },
@@ -384,6 +406,8 @@ export interface AppSettings {
    * Windows-only.
    */
   screenControlEnabled?: boolean
+  /** Global conversation-compaction controls (enable, threshold, keep-recent size). */
+  compactionSettings?: CompactionSettings
 }
 
 /**
@@ -394,6 +418,8 @@ export type SubagentPhase = 'started' | 'tool' | 'completed' | 'failed'
 
 export type AgentStreamEvent =
   | { type: 'thinking'; sessionId: string; active: boolean }
+  /** A rolling conversation summary is being (re)computed; the UI should show it's busy. */
+  | { type: 'compaction'; sessionId: string; active: boolean }
   | { type: 'token'; sessionId: string; messageId: string; delta: string }
   | { type: 'tool_call_start'; sessionId: string; toolCall: ToolCallRequest }
   | { type: 'tool_call_result'; sessionId: string; result: ToolCallResult }

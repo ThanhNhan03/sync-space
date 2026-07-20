@@ -6,11 +6,14 @@ import type {
   AgentStreamEvent,
   AppSettings,
   ChatMessage,
+  CompactionSettings,
+  CompactionStatus,
   McpPreset,
   McpServerStatus,
   MemoryEntry,
   MessageAttachment,
   PermissionRule,
+  ProviderConfig,
   SessionSummary,
   SkillInfo,
   SubagentSettings,
@@ -19,12 +22,13 @@ import type {
   WorkspaceFileEntry,
   WorkspaceFilePreview
 } from '@shared/types'
-import { DEFAULT_AGENTS, DEFAULT_SUBAGENT_SETTINGS } from '@shared/types'
+import { DEFAULT_AGENTS, DEFAULT_COMPACTION_SETTINGS, DEFAULT_SUBAGENT_SETTINGS } from '@shared/types'
 import { decidePermission, sanitizeRules } from '@permissions/permissionRules'
-import type { SettingsRepository, MemoriesRepository } from '@database/repositories'
+import type { SettingsRepository, MemoriesRepository, CompactionRepository } from '@database/repositories'
 import { allTools } from '@tools/index'
 import { ToolManager } from '@tools/ToolManager'
 import { createProvider } from '@providers/registry'
+import type { LLMProvider } from '@providers/LLMProvider'
 import { AgentRunner } from '@agent/AgentRunner'
 import { createSpawnSubagentTool, SPAWN_SUBAGENT_TOOL_NAME } from '@agent/subagentTool'
 import {
@@ -51,6 +55,7 @@ import {
   readWorkspaceFilePreview,
   resolveWorkspaceFilePath as resolveWorkspaceFilePathFiles
 } from '@files/workspaceFiles'
+import { ConversationCompactor } from '@compaction/ConversationCompactor'
 
 import { SessionManager, type CreateSessionInput } from './SessionManager'
 
@@ -89,6 +94,7 @@ export class SyncSpaceEngine {
   private readonly mcpManager: McpManager
   private readonly skillsManager: SkillsManager
   private readonly memoryManager: MemoryManager
+  private readonly conversationCompactor: ConversationCompactor
   /** Shared counter bounding concurrent subagents across all sessions. */
   private readonly subagentConcurrency = { active: 0 }
   /** Session-scoped "always allow" tool decisions (lowercased tool names). */
@@ -104,6 +110,7 @@ export class SyncSpaceEngine {
     private readonly sessionManager: SessionManager,
     private readonly settingsRepo: SettingsRepository,
     memoriesRepo: MemoriesRepository,
+    compactionRepo: CompactionRepository,
     options: EngineOptions
   ) {
     this.skillsManager = new SkillsManager({
@@ -111,6 +118,7 @@ export class SyncSpaceEngine {
       builtinSkillsDir: options.builtinSkillsDir
     })
     this.memoryManager = new MemoryManager(memoriesRepo, () => this.isMemoryEnabled())
+    this.conversationCompactor = new ConversationCompactor(compactionRepo, () => this.getCompactionSettings())
     // The use_skill and remember/recall tools read current settings/workspace on each call,
     // so they always reflect the enabled skill set / memory state without re-registration.
     const useSkillTool = createUseSkillTool(
@@ -241,6 +249,20 @@ export class SyncSpaceEngine {
         MAX_SUBAGENT_TIMEOUT_MS / 1000
       )
     }
+  }
+
+  /**
+   * Compaction controls, merged over defaults and clamped to safe bounds. `keepRecentChars`
+   * must stay well below `thresholdChars` -- otherwise the tail kept after a compaction pass
+   * is already back at/above the threshold, and every subsequent turn re-triggers a full
+   * summarization call forever.
+   */
+  private getCompactionSettings(): CompactionSettings {
+    const stored = this.getSettings().compactionSettings
+    const merged = { ...DEFAULT_COMPACTION_SETTINGS, ...stored }
+    const thresholdChars = Math.max(5_000, Math.floor(merged.thresholdChars))
+    const keepRecentChars = Math.min(Math.max(500, Math.floor(merged.keepRecentChars)), thresholdChars * 0.5)
+    return { enabled: merged.enabled, thresholdChars, keepRecentChars }
   }
 
   /** Configured agents, or the built-in defaults until the user customizes their agent list. */
@@ -391,10 +413,20 @@ export class SyncSpaceEngine {
     }
   }
 
-  async sendMessage(params: SendMessageParams, onEvent: (event: AgentStreamEvent) => void): Promise<void> {
-    const session = this.sessionManager.getSession(params.sessionId)
+  /**
+   * Resolves a session to its workspace and a live provider instance, throwing the same
+   * errors sendMessage always has -- shared by sendMessage and the compaction status/manual
+   * endpoints, which also need a live provider to call.
+   */
+  private resolveSessionProvider(sessionId: string): {
+    session: SessionSummary
+    workspace: Workspace
+    provider: LLMProvider
+    providerConfig: ProviderConfig
+  } {
+    const session = this.sessionManager.getSession(sessionId)
     if (!session) {
-      throw new Error(`Session not found: ${params.sessionId}`)
+      throw new Error(`Session not found: ${sessionId}`)
     }
 
     const workspace = this.sessionManager.getWorkspace(session.workspaceId)
@@ -402,8 +434,7 @@ export class SyncSpaceEngine {
       throw new Error(`Workspace not found: ${session.workspaceId}`)
     }
 
-    const settings = this.getSettings()
-    const providerConfig = settings.providers[session.providerId]
+    const providerConfig = this.getSettings().providers[session.providerId]
     if (!providerConfig) {
       throw new Error(
         `No configuration found for provider "${session.providerId}". Add an API key for it in Settings first.`
@@ -411,6 +442,25 @@ export class SyncSpaceEngine {
     }
 
     const provider = createProvider({ ...providerConfig, model: session.model })
+    return { session, workspace, provider, providerConfig }
+  }
+
+  /** Whether/how much of a session's history has been folded into a rolling summary. */
+  getCompactionStatus(sessionId: string): CompactionStatus {
+    const fullHistory = this.sessionManager.getMessages(sessionId)
+    return this.conversationCompactor.getStatus(sessionId, fullHistory)
+  }
+
+  /** User-triggered "Compact now" -- summarizes immediately, ignoring the auto-trigger threshold. */
+  async runCompactionNow(sessionId: string): Promise<CompactionStatus> {
+    const { provider, session } = this.resolveSessionProvider(sessionId)
+    const fullHistory = this.sessionManager.getMessages(sessionId)
+    await this.conversationCompactor.manualCompact(provider, session.model, sessionId, fullHistory)
+    return this.conversationCompactor.getStatus(sessionId, fullHistory)
+  }
+
+  async sendMessage(params: SendMessageParams, onEvent: (event: AgentStreamEvent) => void): Promise<void> {
+    const { session, workspace, provider, providerConfig } = this.resolveSessionProvider(params.sessionId)
 
     const attachments: MessageAttachment[] = (params.attachmentPaths ?? []).map((path) => ({
       id: randomUUID(),
@@ -430,6 +480,18 @@ export class SyncSpaceEngine {
 
     const history = this.sessionManager.getMessages(session.id)
 
+    // Keep the provider-facing history bounded: summarize an older prefix into a rolling
+    // summary once it grows past a threshold, while recent turns stay verbatim. Never touches
+    // persisted messages -- sessionManager.getMessages() above and below always sees everything.
+    const { promptSection: compactionSection, effectiveHistory } =
+      await this.conversationCompactor.getEffectiveHistory(
+        provider,
+        session.model,
+        session.id,
+        history,
+        (active) => onEvent({ type: 'compaction', sessionId: session.id, active })
+      )
+
     // Progressive disclosure: inject only enabled skills' name+description into the system
     // prompt; the model loads full bodies on demand via the use_skill tool.
     const enabledSkills = this.getEnabledSkills(workspace.rootPath)
@@ -444,7 +506,7 @@ export class SyncSpaceEngine {
       subagentSettings.enabled && agents.length > 0
         ? buildAgentsPromptSection(agents.map((a) => ({ name: a.name, description: a.description })))
         : ''
-    const systemPromptSuffix = `${skillsSection}${memorySection}${agentsSection}`
+    const systemPromptSuffix = `${compactionSection}${skillsSection}${memorySection}${agentsSection}`
 
     // Bound once and shared by the parent run and every child run so approval prompts always
     // reach the UI and "always allow" decisions apply everywhere within this session.
@@ -523,7 +585,7 @@ export class SyncSpaceEngine {
           ...(this.isScreenControlEnabled() ? [] : SCREEN_TOOL_NAMES)
         ],
         checkToolPermission,
-        history,
+        history: effectiveHistory,
         onEvent,
         persistMessage: (message) => this.sessionManager.appendMessage(message),
         isCancelled: () => this.cancelledSessions.has(session.id)

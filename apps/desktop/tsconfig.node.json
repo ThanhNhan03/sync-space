@@ -27,6 +27,7 @@
       "@permissions/*": ["src/permissions/*"],
       "@screen/*": ["src/screen/*"],
       "@files/*": ["src/files/*"],
+      "@compaction/*": ["src/compaction/*"],
       "@providers/*": ["src/providers/*"],
       "@database/*": ["src/database/*"],
       "@ipc/*": ["src/ipc/*"]
@@ -45,6 +46,7 @@
     "src/permissions/**/*",
     "src/screen/**/*",
     "src/files/**/*",
+    "src/compaction/**/*",
     "src/providers/**/*",
     "src/database/**/*",
     "src/ipc/**/*"

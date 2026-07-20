@@ -27,6 +27,7 @@ export function useSyncSpace() {
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isThinking, setIsThinking] = useState(false)
+  const [isCompacting, setIsCompacting] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null)
 
@@ -98,6 +99,7 @@ export function useSyncSpace() {
     }
     let cancelled = false
     setIsThinking(false)
+    setIsCompacting(false)
     setStreamingMessageId(null)
     setSubagents({})
     setPendingPermissions([])
@@ -120,6 +122,9 @@ export function useSyncSpace() {
       switch (event.type) {
         case 'thinking':
           setIsThinking(event.active)
+          break
+        case 'compaction':
+          setIsCompacting(event.active)
           break
         case 'token':
           setStreamingMessageId(event.messageId)
@@ -193,6 +198,7 @@ export function useSyncSpace() {
         case 'run_done':
           setIsSending(false)
           setIsThinking(false)
+          setIsCompacting(false)
           setStreamingMessageId(null)
           setSubagents({})
           setPendingPermissions([])
@@ -200,6 +206,7 @@ export function useSyncSpace() {
         case 'error':
           setIsSending(false)
           setIsThinking(false)
+          setIsCompacting(false)
           setStreamingMessageId(null)
           setSubagents({})
           setPendingPermissions([])
@@ -365,6 +372,7 @@ export function useSyncSpace() {
     onDeleteSession,
     messages,
     isThinking,
+    isCompacting,
     isSending,
     streamingMessageId,
     composerValue,

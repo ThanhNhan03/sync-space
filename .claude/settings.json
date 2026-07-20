@@ -5,7 +5,8 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:opencoworkai.github.io)",
       "Bash(npm run *)",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "Bash(grep -vE 'npm notice|^\\\\s*$|^>')"
     ]
   }
 }
