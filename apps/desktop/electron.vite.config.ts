@@ -31,7 +31,8 @@ export default defineConfig({
         '@compaction': resolve(__dirname, 'src/compaction'),
         '@providers': resolve(__dirname, 'src/providers'),
         '@database': resolve(__dirname, 'src/database'),
-        '@ipc': resolve(__dirname, 'src/ipc')
+        '@ipc': resolve(__dirname, 'src/ipc'),
+        '@graph': resolve(__dirname, 'src/graph')
       }
     }
   },

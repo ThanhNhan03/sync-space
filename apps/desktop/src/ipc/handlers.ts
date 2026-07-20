@@ -162,6 +162,9 @@ export function registerIpcHandlers(engine: SyncSpaceEngine, getWindow: () => Br
   handle(IPC.COMPACTION_STATUS, (req) => engine.getCompactionStatus(req.sessionId))
   handle(IPC.COMPACTION_RUN_NOW, (req) => engine.runCompactionNow(req.sessionId))
 
+  handle(IPC.KNOWLEDGE_GRAPH_STATUS, (req) => engine.getKnowledgeGraphStatus(req.workspaceRoot))
+  handle(IPC.KNOWLEDGE_GRAPH_REBUILD, (req) => engine.rebuildKnowledgeGraph(req.workspaceRoot))
+
   handle(IPC.SKILLS_LIST, (req) => engine.listSkills(req.workspaceRoot))
   handle(IPC.SKILLS_SET_ENABLED, (req) =>
     engine.setSkillEnabled(req.id, req.enabled, req.workspaceRoot)

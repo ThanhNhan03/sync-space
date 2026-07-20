@@ -2,6 +2,7 @@ import type {
   AppSettings,
   ChatMessage,
   CompactionStatus,
+  KnowledgeGraphStatus,
   McpPreset,
   McpServerStatus,
   MemoryCategory,
@@ -45,7 +46,9 @@ export const IPC = {
   WORKSPACE_FILE_OPEN_EXTERNAL: 'workspace-files:open-external',
   WORKSPACE_FILE_SHOW_IN_FOLDER: 'workspace-files:show-in-folder',
   COMPACTION_STATUS: 'compaction:status',
-  COMPACTION_RUN_NOW: 'compaction:run-now'
+  COMPACTION_RUN_NOW: 'compaction:run-now',
+  KNOWLEDGE_GRAPH_STATUS: 'knowledge-graph:status',
+  KNOWLEDGE_GRAPH_REBUILD: 'knowledge-graph:rebuild'
 } as const
 
 /** Main -> Renderer, fire-and-forget push channels. */
@@ -84,6 +87,8 @@ export interface IpcRequestMap {
   [IPC.WORKSPACE_FILE_SHOW_IN_FOLDER]: { workspaceRoot: string; relativePath: string }
   [IPC.COMPACTION_STATUS]: { sessionId: string }
   [IPC.COMPACTION_RUN_NOW]: { sessionId: string }
+  [IPC.KNOWLEDGE_GRAPH_STATUS]: { workspaceRoot: string }
+  [IPC.KNOWLEDGE_GRAPH_REBUILD]: { workspaceRoot: string }
 }
 
 export interface IpcResponseMap {
@@ -116,6 +121,8 @@ export interface IpcResponseMap {
   [IPC.WORKSPACE_FILE_SHOW_IN_FOLDER]: { opened: boolean }
   [IPC.COMPACTION_STATUS]: CompactionStatus
   [IPC.COMPACTION_RUN_NOW]: CompactionStatus
+  [IPC.KNOWLEDGE_GRAPH_STATUS]: KnowledgeGraphStatus
+  [IPC.KNOWLEDGE_GRAPH_REBUILD]: KnowledgeGraphStatus
 }
 
 export type IpcChannel = keyof IpcRequestMap

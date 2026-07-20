@@ -6,7 +6,14 @@
       "WebFetch(domain:opencoworkai.github.io)",
       "Bash(npm run *)",
       "Bash(npm test *)",
-      "Bash(grep -vE 'npm notice|^\\\\s*$|^>')"
+      "Bash(grep -vE 'npm notice|^\\\\s*$|^>')",
+      "Bash(xargs grep -l \"externalizeDeps\")",
+      "Bash(npx vitest *)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron . --no-sandbox --disable-gpu)",
+      "Bash(powershell -Command \"Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(rm -f /tmp/electron-launch.log)",
+      "Bash(disown)",
+      "Read(//tmp/**)"
     ]
   }
 }

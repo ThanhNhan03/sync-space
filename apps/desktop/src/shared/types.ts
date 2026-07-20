@@ -282,6 +282,8 @@ export const DEFAULT_PERMISSION_RULES: PermissionRule[] = [
   { tool: 'use_skill', action: 'allow' },
   { tool: 'recall', action: 'allow' },
   { tool: 'remember', action: 'allow' },
+  { tool: 'graph_search', action: 'allow' },
+  { tool: 'graph_expand', action: 'allow' },
   { tool: 'write_file', action: 'ask' },
   { tool: 'create_file', action: 'ask' },
   { tool: 'delete_file', action: 'ask' },
@@ -353,6 +355,17 @@ export interface CompactionStatus {
   updatedAt?: number
 }
 
+/** Whether a workspace's codebase knowledge graph has been built, and its rough size. */
+export interface KnowledgeGraphStatus {
+  indexed: boolean
+  fileCount?: number
+  nodeCount?: number
+  edgeCount?: number
+  /** True when the walk stopped early because the workspace exceeds the file-count cap. */
+  truncated?: boolean
+  builtAt?: number
+}
+
 /** Built-in tools shown in the Permissions settings tab, with friendly labels. */
 export const PERMISSION_MANAGED_TOOLS: { name: string; label: string }[] = [
   { name: 'read_file', label: 'Read file' },
@@ -363,6 +376,8 @@ export const PERMISSION_MANAGED_TOOLS: { name: string; label: string }[] = [
   { name: 'use_skill', label: 'Use skill' },
   { name: 'recall', label: 'Recall memory' },
   { name: 'remember', label: 'Remember memory' },
+  { name: 'graph_search', label: 'Search knowledge graph' },
+  { name: 'graph_expand', label: 'Expand knowledge graph node' },
   { name: 'write_file', label: 'Write file' },
   { name: 'create_file', label: 'Create file' },
   { name: 'delete_file', label: 'Delete file' },

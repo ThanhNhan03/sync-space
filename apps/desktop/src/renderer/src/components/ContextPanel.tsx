@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { CompactionStatus, SessionSummary, Workspace } from '@shared/types'
+import type { CompactionStatus, KnowledgeGraphStatus, SessionSummary, Workspace } from '@shared/types'
 
 export interface ContextPanelProps {
   workspace: Workspace | null
@@ -37,8 +37,11 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
  */
 export function ContextPanel({ workspace, session, messageCount, open }: ContextPanelProps): JSX.Element {
   const sessionId = session?.id
+  const workspaceRoot = workspace?.rootPath
   const [compactionStatus, setCompactionStatus] = useState<CompactionStatus | null>(null)
   const [isCompactingNow, setIsCompactingNow] = useState(false)
+  const [graphStatus, setGraphStatus] = useState<KnowledgeGraphStatus | null>(null)
+  const [isRebuildingGraph, setIsRebuildingGraph] = useState(false)
 
   const refreshCompactionStatus = useCallback(async () => {
     if (!sessionId) {
@@ -61,6 +64,30 @@ export function ContextPanel({ workspace, session, messageCount, open }: Context
       setCompactionStatus(await window.syncspace.runCompactionNow(sessionId))
     } finally {
       setIsCompactingNow(false)
+    }
+  }
+
+  const refreshGraphStatus = useCallback(async () => {
+    if (!workspaceRoot) {
+      setGraphStatus(null)
+      return
+    }
+    setGraphStatus(await window.syncspace.getKnowledgeGraphStatus(workspaceRoot))
+  }, [workspaceRoot])
+
+  // The knowledge graph is workspace-scoped (not session-scoped), so it only refreshes on
+  // workspace switch -- unlike compaction, message count is not a meaningful signal here.
+  useEffect(() => {
+    void refreshGraphStatus()
+  }, [refreshGraphStatus])
+
+  const handleRebuildGraph = async (): Promise<void> => {
+    if (!workspaceRoot) return
+    setIsRebuildingGraph(true)
+    try {
+      setGraphStatus(await window.syncspace.rebuildKnowledgeGraph(workspaceRoot))
+    } finally {
+      setIsRebuildingGraph(false)
     }
   }
 
@@ -111,6 +138,31 @@ export function ContextPanel({ workspace, session, messageCount, open }: Context
                     className="shrink-0 rounded-md bg-surface-muted px-2 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isCompactingNow ? 'Compacting…' : 'Compact now'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border-subtle bg-surface p-3 shadow-soft">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Row
+                    label="Knowledge graph"
+                    value={
+                      graphStatus?.indexed
+                        ? `${graphStatus.fileCount ?? '?'} files, ${graphStatus.nodeCount ?? '?'} nodes${
+                            graphStatus.truncated ? ' (truncated)' : ''
+                          }`
+                        : 'Not yet indexed'
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleRebuildGraph()}
+                    disabled={!workspaceRoot || isRebuildingGraph}
+                    className="shrink-0 rounded-md bg-surface-muted px-2 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isRebuildingGraph ? 'Indexing…' : 'Rebuild index'}
                   </button>
                 </div>
               </div>

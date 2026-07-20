@@ -81,6 +81,10 @@ const api = {
 
   runCompactionNow: (sessionId: string) => invoke(IPC.COMPACTION_RUN_NOW, { sessionId }),
 
+  getKnowledgeGraphStatus: (workspaceRoot: string) => invoke(IPC.KNOWLEDGE_GRAPH_STATUS, { workspaceRoot }),
+
+  rebuildKnowledgeGraph: (workspaceRoot: string) => invoke(IPC.KNOWLEDGE_GRAPH_REBUILD, { workspaceRoot }),
+
   /** Subscribes to Agent Runner stream events; returns an unsubscribe function. */
   onStreamEvent(callback: (event: AgentStreamEvent) => void): () => void {
     const listener = (_event: unknown, streamEvent: AgentStreamEvent): void => callback(streamEvent)

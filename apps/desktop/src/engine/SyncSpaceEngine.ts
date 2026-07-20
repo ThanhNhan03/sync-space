@@ -8,6 +8,7 @@ import type {
   ChatMessage,
   CompactionSettings,
   CompactionStatus,
+  KnowledgeGraphStatus,
   McpPreset,
   McpServerStatus,
   MemoryEntry,
@@ -56,6 +57,8 @@ import {
   resolveWorkspaceFilePath as resolveWorkspaceFilePathFiles
 } from '@files/workspaceFiles'
 import { ConversationCompactor } from '@compaction/ConversationCompactor'
+import { KnowledgeGraphManager } from '@graph/KnowledgeGraphManager'
+import { createKnowledgeGraphTools } from '@graph/knowledgeGraphTools'
 
 import { SessionManager, type CreateSessionInput } from './SessionManager'
 
@@ -95,6 +98,7 @@ export class SyncSpaceEngine {
   private readonly skillsManager: SkillsManager
   private readonly memoryManager: MemoryManager
   private readonly conversationCompactor: ConversationCompactor
+  private readonly knowledgeGraphManager: KnowledgeGraphManager
   /** Shared counter bounding concurrent subagents across all sessions. */
   private readonly subagentConcurrency = { active: 0 }
   /** Session-scoped "always allow" tool decisions (lowercased tool names). */
@@ -119,6 +123,7 @@ export class SyncSpaceEngine {
     })
     this.memoryManager = new MemoryManager(memoriesRepo, () => this.isMemoryEnabled())
     this.conversationCompactor = new ConversationCompactor(compactionRepo, () => this.getCompactionSettings())
+    this.knowledgeGraphManager = new KnowledgeGraphManager()
     // The use_skill and remember/recall tools read current settings/workspace on each call,
     // so they always reflect the enabled skill set / memory state without re-registration.
     const useSkillTool = createUseSkillTool(
@@ -135,7 +140,8 @@ export class SyncSpaceEngine {
       useSkillTool,
       ...memoryTools,
       createSpawnSubagentTool(),
-      ...screenTools
+      ...screenTools,
+      ...createKnowledgeGraphTools(this.knowledgeGraphManager)
     ])
     this.agentRunner = new AgentRunner(this.toolManager)
 
@@ -457,6 +463,17 @@ export class SyncSpaceEngine {
     const fullHistory = this.sessionManager.getMessages(sessionId)
     await this.conversationCompactor.manualCompact(provider, session.model, sessionId, fullHistory)
     return this.conversationCompactor.getStatus(sessionId, fullHistory)
+  }
+
+  /** Whether a workspace's codebase knowledge graph has been built yet, read from cache only. */
+  getKnowledgeGraphStatus(workspaceRoot: string): KnowledgeGraphStatus {
+    return this.knowledgeGraphManager.getStatus(workspaceRoot)
+  }
+
+  /** User-triggered "Rebuild index" -- forces a fresh walk, ignoring any cached graph. */
+  async rebuildKnowledgeGraph(workspaceRoot: string): Promise<KnowledgeGraphStatus> {
+    await this.knowledgeGraphManager.rebuild(workspaceRoot)
+    return this.knowledgeGraphManager.getStatus(workspaceRoot)
   }
 
   async sendMessage(params: SendMessageParams, onEvent: (event: AgentStreamEvent) => void): Promise<void> {

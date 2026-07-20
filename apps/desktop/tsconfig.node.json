@@ -30,7 +30,8 @@
       "@compaction/*": ["src/compaction/*"],
       "@providers/*": ["src/providers/*"],
       "@database/*": ["src/database/*"],
-      "@ipc/*": ["src/ipc/*"]
+      "@ipc/*": ["src/ipc/*"],
+      "@graph/*": ["src/graph/*"]
     }
   },
   "include": [
@@ -49,6 +50,7 @@
     "src/compaction/**/*",
     "src/providers/**/*",
     "src/database/**/*",
-    "src/ipc/**/*"
+    "src/ipc/**/*",
+    "src/graph/**/*"
   ]
 }
