@@ -148,8 +148,9 @@ export const searchWorkspaceTool: Tool = {
       const { query, path, caseSensitive, maxResults } = parseArgs(args)
       const searchRoot = await resolveWorkspacePath(context.workspaceRoot, path ?? '.')
 
+      // Non-null: resolveWorkspacePath above already threw if the root were null.
       const files: string[] = []
-      await collectFiles(searchRoot, context.workspaceRoot, files)
+      await collectFiles(searchRoot, context.workspaceRoot!, files)
 
       const matches: Match[] = []
       let truncated = false
@@ -178,7 +179,7 @@ export const searchWorkspaceTool: Tool = {
 
         let fileMatches: Match[]
         try {
-          fileMatches = await searchFile(absoluteFilePath, context.workspaceRoot, query, caseSensitive)
+          fileMatches = await searchFile(absoluteFilePath, context.workspaceRoot!, query, caseSensitive)
         } catch {
           continue
         }

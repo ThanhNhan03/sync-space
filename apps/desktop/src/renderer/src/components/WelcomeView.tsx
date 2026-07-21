@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import type { KeyboardEvent } from 'react'
+import type { DragEvent, KeyboardEvent } from 'react'
 import type { MessageAttachment, Workspace } from '@shared/types'
 
+const OPEN_FOLDER_VALUE = '__open_folder__'
+const NO_WORKSPACE_VALUE = ''
+
 export interface WelcomeViewProps {
-  workspace: Workspace | null
-  onSelectWorkspace: () => void
+  workspaces: Workspace[]
+  onOpenWorkspaceFolder: () => Promise<Workspace | null>
   attachments: MessageAttachment[]
   onAttach: () => void
   onRemoveAttachment: (id: string) => void
-  onStart: (content: string) => void
+  onFilesDropped: (files: FileList) => void
+  onStart: (content: string, workspaceId: string | null) => void
   hasProviderKey: boolean
   onOpenSettings: () => void
 }
@@ -43,18 +47,38 @@ const QUICK_TAGS: { id: string; label: string; prompt: string; icon: JSX.Element
 const MAX_TEXTAREA_HEIGHT_PX = 200
 
 export function WelcomeView({
-  workspace,
-  onSelectWorkspace,
+  workspaces,
+  onOpenWorkspaceFolder,
   attachments,
   onAttach,
   onRemoveAttachment,
+  onFilesDropped,
   onStart,
   hasProviderKey,
   onOpenSettings
 }: WelcomeViewProps): JSX.Element {
   const [prompt, setPrompt] = useState('')
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  // The workspace the first chat will be created with; null = a workspace-less chat.
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null)
+  const [dragActive, setDragActive] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const handleDragOver = (event: DragEvent): void => {
+    event.preventDefault()
+    setDragActive(true)
+  }
+  const handleDragLeave = (event: DragEvent): void => {
+    event.preventDefault()
+    setDragActive(false)
+  }
+  const handleDrop = (event: DragEvent): void => {
+    event.preventDefault()
+    setDragActive(false)
+    if (event.dataTransfer.files.length > 0) {
+      onFilesDropped(event.dataTransfer.files)
+    }
+  }
 
   useEffect(() => {
     const el = textareaRef.current
@@ -63,13 +87,22 @@ export function WelcomeView({
     el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`
   }, [prompt])
 
-  const canSubmit = Boolean(workspace) && (prompt.trim().length > 0 || attachments.length > 0)
+  const canSubmit = prompt.trim().length > 0 || attachments.length > 0
 
   const submit = (): void => {
     if (!canSubmit) return
-    onStart(prompt)
+    onStart(prompt, workspaceId)
     setPrompt('')
     setSelectedTag(null)
+  }
+
+  const handleWorkspaceChange = async (value: string): Promise<void> => {
+    if (value === OPEN_FOLDER_VALUE) {
+      const opened = await onOpenWorkspaceFolder()
+      if (opened) setWorkspaceId(opened.id)
+      return
+    }
+    setWorkspaceId(value === NO_WORKSPACE_VALUE ? null : value)
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -141,7 +174,14 @@ export function WelcomeView({
         </div>
 
         {/* Input card */}
-        <div className="rounded-4xl border border-border-muted bg-surface p-4 shadow-soft">
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`rounded-4xl border bg-surface p-4 shadow-soft transition-colors ${
+            dragActive ? 'border-dashed border-accent bg-accent-muted' : 'border-border-muted'
+          }`}
+        >
           {attachments.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
               {attachments.map((attachment) => (
@@ -169,28 +209,31 @@ export function WelcomeView({
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={handleKeyDown}
             rows={1}
-            placeholder={workspace ? 'What should we work on?' : 'Select a workspace folder to begin…'}
+            placeholder="What should we work on?"
             style={{ minHeight: '64px', maxHeight: '200px' }}
             className="w-full resize-none border-none bg-transparent text-base leading-relaxed text-text-primary outline-none placeholder:text-text-muted"
           />
 
           <div className="mt-3 flex items-center justify-between border-t border-border-subtle pt-3">
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onSelectWorkspace}
-                title={workspace?.rootPath ?? 'Select a workspace folder'}
-                className={`flex items-center gap-2 text-sm transition-colors ${
-                  workspace ? 'text-text-secondary hover:text-text-primary' : 'text-accent hover:text-accent-hover'
-                }`}
-              >
-                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+              <label className="flex items-center gap-2 text-sm text-text-secondary" title="Optional: scope this chat to a project folder">
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0 text-text-muted">
                   <path d="M2 4.75A1.75 1.75 0 0 1 3.75 3h3.19a1.75 1.75 0 0 1 1.237.513l.81.81a.75.75 0 0 0 .53.22h6.733A1.75 1.75 0 0 1 18 6.28v8.97A1.75 1.75 0 0 1 16.25 17H3.75A1.75 1.75 0 0 1 2 15.25V4.75z" />
                 </svg>
-                <span className="max-w-[16rem] truncate">
-                  {workspace ? workspace.name : 'Select workspace'}
-                </span>
-              </button>
+                <select
+                  value={workspaceId ?? NO_WORKSPACE_VALUE}
+                  onChange={(e) => void handleWorkspaceChange(e.target.value)}
+                  className="max-w-[16rem] cursor-pointer truncate bg-transparent text-sm text-text-secondary outline-none hover:text-text-primary"
+                >
+                  <option value={NO_WORKSPACE_VALUE}>No workspace</option>
+                  {workspaces.map((ws) => (
+                    <option key={ws.id} value={ws.id}>
+                      {ws.name}
+                    </option>
+                  ))}
+                  <option value={OPEN_FOLDER_VALUE}>Open folder…</option>
+                </select>
+              </label>
 
               <button
                 type="button"

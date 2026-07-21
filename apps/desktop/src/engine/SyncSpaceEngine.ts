@@ -99,6 +99,8 @@ export class SyncSpaceEngine {
   private readonly memoryManager: MemoryManager
   private readonly conversationCompactor: ConversationCompactor
   private readonly knowledgeGraphManager: KnowledgeGraphManager
+  /** Tools requiring a real workspace root; hidden from the model in workspace-less chats. */
+  private readonly workspaceBoundToolNames: string[]
   /** Shared counter bounding concurrent subagents across all sessions. */
   private readonly subagentConcurrency = { active: 0 }
   /** Session-scoped "always allow" tool decisions (lowercased tool names). */
@@ -135,13 +137,18 @@ export class SyncSpaceEngine {
       screenshotsDir: options.screenshotsDir,
       getVisionConfig: () => this.getVisionConfig()
     })
+    const knowledgeGraphTools = createKnowledgeGraphTools(this.knowledgeGraphManager)
+    // allTools is exactly the file/search/git/terminal set (all workspace-bound); the graph
+    // tools are the other two that need a real root. Derived here so the exclude list can't
+    // drift from the actual registered tools.
+    this.workspaceBoundToolNames = [...allTools, ...knowledgeGraphTools].map((t) => t.name)
     this.toolManager = new ToolManager([
       ...allTools,
       useSkillTool,
       ...memoryTools,
       createSpawnSubagentTool(),
       ...screenTools,
-      ...createKnowledgeGraphTools(this.knowledgeGraphManager)
+      ...knowledgeGraphTools
     ])
     this.agentRunner = new AgentRunner(this.toolManager)
 
@@ -276,8 +283,9 @@ export class SyncSpaceEngine {
     return this.getSettings().agents ?? DEFAULT_AGENTS
   }
 
-  /** Skills discovered for a workspace with the user's disabled ones removed. */
-  private getEnabledSkills(workspaceRoot: string): DiscoveredSkill[] {
+  /** Skills discovered for a workspace with the user's disabled ones removed. Passing
+   *  undefined (a workspace-less chat) yields only global + built-in skills. */
+  private getEnabledSkills(workspaceRoot: string | undefined): DiscoveredSkill[] {
     const disabled = new Set(this.getSettings().disabledSkillIds ?? [])
     return this.skillsManager.discover(workspaceRoot).filter((skill) => !disabled.has(skill.id))
   }
@@ -319,8 +327,8 @@ export class SyncSpaceEngine {
     return this.sessionManager.registerWorkspace(basename(rootPath), rootPath)
   }
 
-  listSessions(workspaceId: string): SessionSummary[] {
-    return this.sessionManager.listSessions(workspaceId)
+  listSessions(): SessionSummary[] {
+    return this.sessionManager.listSessions()
   }
 
   createSession(input: CreateSessionInput): SessionSummary {
@@ -329,6 +337,17 @@ export class SyncSpaceEngine {
 
   renameSession(sessionId: string, title: string): SessionSummary {
     return this.sessionManager.renameSession(sessionId, title)
+  }
+
+  /**
+   * Attach/detach/change a chat's workspace after creation. Validates the target workspace
+   * exists when non-null (a null means a deliberately workspace-less chat).
+   */
+  setSessionWorkspace(sessionId: string, workspaceId: string | null): SessionSummary {
+    if (workspaceId !== null && !this.sessionManager.getWorkspace(workspaceId)) {
+      throw new Error(`Workspace not found: ${workspaceId}`)
+    }
+    return this.sessionManager.setSessionWorkspace(sessionId, workspaceId)
   }
 
   deleteSession(sessionId: string): void {
@@ -426,7 +445,7 @@ export class SyncSpaceEngine {
    */
   private resolveSessionProvider(sessionId: string): {
     session: SessionSummary
-    workspace: Workspace
+    workspace: Workspace | null
     provider: LLMProvider
     providerConfig: ProviderConfig
   } {
@@ -435,9 +454,14 @@ export class SyncSpaceEngine {
       throw new Error(`Session not found: ${sessionId}`)
     }
 
-    const workspace = this.sessionManager.getWorkspace(session.workspaceId)
-    if (!workspace) {
-      throw new Error(`Workspace not found: ${session.workspaceId}`)
+    // A null workspaceId is a deliberately workspace-less chat. A non-null id that doesn't
+    // resolve is data corruption (a dangling reference) and must still throw.
+    let workspace: Workspace | null = null
+    if (session.workspaceId !== null) {
+      workspace = this.sessionManager.getWorkspace(session.workspaceId) ?? null
+      if (!workspace) {
+        throw new Error(`Workspace not found: ${session.workspaceId}`)
+      }
     }
 
     const providerConfig = this.getSettings().providers[session.providerId]
@@ -510,11 +534,21 @@ export class SyncSpaceEngine {
       )
 
     // Progressive disclosure: inject only enabled skills' name+description into the system
-    // prompt; the model loads full bodies on demand via the use_skill tool.
-    const enabledSkills = this.getEnabledSkills(workspace.rootPath)
+    // prompt; the model loads full bodies on demand via the use_skill tool. A workspace-less
+    // chat gets only global + built-in skills (SkillsManager skips the project source).
+    const enabledSkills = this.getEnabledSkills(workspace?.rootPath)
     const skillsSection = buildSkillsPromptSection(enabledSkills)
     // Inject memories relevant to what the user just asked (no-op when memory is disabled).
-    const memorySection = this.memoryManager.getPromptSection(workspace.rootPath, params.content)
+    // '' is the established "global scope" sentinel for a workspace-less chat.
+    const memorySection = this.memoryManager.getPromptSection(workspace?.rootPath ?? '', params.content)
+
+    // In a workspace-less chat the file/search/git/terminal/graph tools are hidden; tell the
+    // model so it answers from general knowledge instead of reaching for tools it can't see.
+    const noWorkspaceSection = workspace
+      ? ''
+      : '\n\nThis chat has no workspace folder attached, so file, search, git, terminal, and ' +
+        'knowledge-graph tools are unavailable. Answer from general knowledge and the ' +
+        'conversation. If the user wants to work on a project, suggest they attach a workspace.'
 
     // Subagent config + user-defined agent personas the orchestrator can delegate to.
     const subagentSettings = this.getSubagentSettings()
@@ -523,7 +557,10 @@ export class SyncSpaceEngine {
       subagentSettings.enabled && agents.length > 0
         ? buildAgentsPromptSection(agents.map((a) => ({ name: a.name, description: a.description })))
         : ''
-    const systemPromptSuffix = `${compactionSection}${skillsSection}${memorySection}${agentsSection}`
+    const systemPromptSuffix = `${compactionSection}${skillsSection}${memorySection}${agentsSection}${noWorkspaceSection}`
+
+    // Hide every workspace-scoped tool from the model when the chat has no workspace.
+    const workspaceExcludedTools = workspace ? [] : this.workspaceBoundToolNames
 
     // Bound once and shared by the parent run and every child run so approval prompts always
     // reach the UI and "always allow" decisions apply everywhere within this session.
@@ -557,14 +594,15 @@ export class SyncSpaceEngine {
             provider,
             model: session.model,
             temperature: providerConfig.temperature,
-            workspaceRoot: workspace.rootPath,
+            workspaceRoot: workspace?.rootPath ?? null,
             systemPromptSuffix: childSystemPrompt,
             history: [
               { id: randomUUID(), sessionId: session.id, role: 'user', content: input.task, createdAt: Date.now() }
             ],
             excludeToolNames: [
               SPAWN_SUBAGENT_TOOL_NAME,
-              ...(this.isScreenControlEnabled() ? [] : SCREEN_TOOL_NAMES)
+              ...(this.isScreenControlEnabled() ? [] : SCREEN_TOOL_NAMES),
+              ...workspaceExcludedTools
             ],
             checkToolPermission,
             onEvent: (event) => {
@@ -593,13 +631,14 @@ export class SyncSpaceEngine {
         provider,
         model: session.model,
         temperature: providerConfig.temperature,
-        workspaceRoot: workspace.rootPath,
+        workspaceRoot: workspace?.rootPath ?? null,
         systemPromptSuffix,
         // Only expose subagents when enabled; otherwise hide the tool from the orchestrator.
         spawnSubagent: subagentSettings.enabled ? spawnSubagent : undefined,
         excludeToolNames: [
           ...(subagentSettings.enabled ? [] : [SPAWN_SUBAGENT_TOOL_NAME]),
-          ...(this.isScreenControlEnabled() ? [] : SCREEN_TOOL_NAMES)
+          ...(this.isScreenControlEnabled() ? [] : SCREEN_TOOL_NAMES),
+          ...workspaceExcludedTools
         ],
         checkToolPermission,
         history: effectiveHistory,
@@ -612,7 +651,7 @@ export class SyncSpaceEngine {
       // best-effort: memory work must never block or fail the chat. Gated internally by the flag.
       const updatedHistory = this.sessionManager.getMessages(session.id)
       void this.memoryManager
-        .extract(provider, session.model, workspace.rootPath, session.id, updatedHistory)
+        .extract(provider, session.model, workspace?.rootPath ?? '', session.id, updatedHistory)
         .catch((error) => console.error('[Memory] extraction failed:', error))
     } finally {
       this.activeRuns.delete(session.id)

@@ -45,6 +45,31 @@ export const MCP_PRESETS: McpPreset[] = [
       GITHUB_PERSONAL_ACCESS_TOKEN: 'GitHub PAT with the scopes you want the agent to use'
     },
     description: 'Query and manage GitHub repos, issues, and pull requests.'
+  },
+  {
+    key: 'jira',
+    name: 'Jira',
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', '@aashari/mcp-server-atlassian-jira'],
+    requiredEnv: ['ATLASSIAN_SITE_NAME', 'ATLASSIAN_USER_EMAIL', 'ATLASSIAN_API_TOKEN'],
+    envDescription: {
+      ATLASSIAN_SITE_NAME: 'The subdomain of your Jira URL (e.g. "acme" for acme.atlassian.net)',
+      ATLASSIAN_USER_EMAIL: 'Your Atlassian account email address',
+      ATLASSIAN_API_TOKEN: 'API token from id.atlassian.com/manage-profile/security/api-tokens'
+    },
+    description: 'Search, read, and create/update Jira Cloud issues and projects.'
+  },
+  {
+    key: 'microsoft-teams',
+    name: 'Microsoft Teams',
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', '@softeria/ms-365-mcp-server', '--org-mode'],
+    description:
+      'Microsoft Teams, Outlook, and SharePoint via Microsoft Graph. No token to fill in below -- ' +
+      'add the server, then ask the agent to run its "login" tool, which returns a device-code ' +
+      'URL you approve in your browser (confirmed via the "verify-login" tool).'
   }
 ]
 

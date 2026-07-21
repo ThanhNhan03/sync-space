@@ -34,7 +34,7 @@ const approvedAttachmentPaths = new Set<string>()
  * (e.g. on macOS activate) after this is registered once at startup.
  */
 export function registerIpcHandlers(engine: SyncSpaceEngine, getWindow: () => BrowserWindow | null): void {
-  handle(IPC.SESSIONS_LIST, (req) => engine.listSessions(req.workspaceId))
+  handle(IPC.SESSIONS_LIST, () => engine.listSessions())
 
   handle(IPC.SESSIONS_CREATE, (req) =>
     engine.createSession({
@@ -51,6 +51,8 @@ export function registerIpcHandlers(engine: SyncSpaceEngine, getWindow: () => Br
     engine.deleteSession(req.sessionId)
     return { id: req.sessionId }
   })
+
+  handle(IPC.SESSIONS_SET_WORKSPACE, (req) => engine.setSessionWorkspace(req.sessionId, req.workspaceId))
 
   handle(IPC.SESSIONS_MESSAGES, (req) => engine.getMessages(req.sessionId))
 
@@ -107,6 +109,34 @@ export function registerIpcHandlers(engine: SyncSpaceEngine, getWindow: () => Br
       })
     }
     return attachments
+  })
+
+  // Drag-and-drop counterpart to ATTACHMENT_SELECT: the renderer resolves dropped File objects
+  // to paths via webUtils.getPathForFile, but a path is only added to the allowlist here, after
+  // the main process independently confirms it's a real file (not a directory, not missing) --
+  // preserving the same "trusted only because the main process observed it" invariant.
+  handle(IPC.ATTACHMENT_REGISTER_DROPPED, async (req) => {
+    const attachments: MessageAttachment[] = []
+    const skipped: { path: string; reason: string }[] = []
+    for (const filePath of req.paths) {
+      const stats = await stat(filePath).catch(() => null)
+      if (!stats) {
+        skipped.push({ path: filePath, reason: 'not found' })
+        continue
+      }
+      if (stats.isDirectory()) {
+        skipped.push({ path: filePath, reason: 'folders are not supported' })
+        continue
+      }
+      approvedAttachmentPaths.add(filePath)
+      attachments.push({
+        id: randomUUID(),
+        name: basename(filePath),
+        path: filePath,
+        size: stats.size
+      })
+    }
+    return { attachments, skipped }
   })
 
   handle(IPC.SETTINGS_GET, () => engine.getSettings())

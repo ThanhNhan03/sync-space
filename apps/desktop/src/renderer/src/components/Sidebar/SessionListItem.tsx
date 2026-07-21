@@ -3,6 +3,8 @@ import type { SessionSummary } from '@shared/types'
 
 export interface SessionListItemProps {
   session: SessionSummary
+  /** Name of the chat's workspace, or null for a workspace-less chat. */
+  workspaceName: string | null
   active: boolean
   onSelect: () => void
   onRename: (title: string) => void
@@ -11,6 +13,7 @@ export interface SessionListItemProps {
 
 export function SessionListItem({
   session,
+  workspaceName,
   active,
   onSelect,
   onRename,
@@ -67,9 +70,17 @@ export function SessionListItem({
           className="flex-1 min-w-0 rounded bg-surface px-1 py-0.5 text-sm text-white outline-none ring-1 ring-accent"
         />
       ) : (
-        <span className="flex-1 truncate" title={session.title}>
-          {session.title}
-        </span>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate" title={session.title}>
+            {session.title}
+          </span>
+          <span
+            className={`truncate text-[10px] ${workspaceName ? 'text-text-muted' : 'italic text-text-muted/70'}`}
+            title={workspaceName ?? 'No workspace'}
+          >
+            {workspaceName ?? 'No workspace'}
+          </span>
+        </div>
       )}
 
       {!isEditing && (

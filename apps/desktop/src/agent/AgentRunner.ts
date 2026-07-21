@@ -12,7 +12,8 @@ export interface AgentRunParams {
   provider: LLMProvider
   model: string
   temperature?: number
-  workspaceRoot: string
+  /** Absolute workspace path, or null for a workspace-less chat (workspace-scoped tools hidden). */
+  workspaceRoot: string | null
   /**
    * Extra system-prompt text appended after the base prompt for this run -- currently the
    * "Available skills" section, which depends on the workspace and the user's enabled skills.

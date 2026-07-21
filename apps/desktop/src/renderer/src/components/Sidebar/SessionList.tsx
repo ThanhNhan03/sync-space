@@ -1,8 +1,10 @@
-import type { SessionSummary } from '@shared/types'
+import type { SessionSummary, Workspace } from '@shared/types'
 import { SessionListItem } from './SessionListItem'
 
 export interface SessionListProps {
   sessions: SessionSummary[]
+  /** Known workspaces, used to render each chat's workspace tag. */
+  workspaces: Workspace[]
   activeSessionId?: string | null
   onSelect: (id: string) => void
   onCreate: () => void
@@ -12,12 +14,14 @@ export interface SessionListProps {
 
 export function SessionList({
   sessions,
+  workspaces,
   activeSessionId,
   onSelect,
   onCreate,
   onRename,
   onDelete
 }: SessionListProps): JSX.Element {
+  const workspaceNameById = new Map(workspaces.map((w) => [w.id, w.name]))
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <button
@@ -37,6 +41,7 @@ export function SessionList({
             <SessionListItem
               key={session.id}
               session={session}
+              workspaceName={session.workspaceId ? workspaceNameById.get(session.workspaceId) ?? null : null}
               active={session.id === activeSessionId}
               onSelect={() => onSelect(session.id)}
               onRename={(title) => onRename(session.id, title)}

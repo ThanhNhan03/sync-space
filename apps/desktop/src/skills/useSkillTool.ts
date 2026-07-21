@@ -37,10 +37,10 @@ export function createUseSkillTool(
       }
 
       const disabled = new Set(getDisabledIds())
-      const loaded = manager.readSkill(name, context.workspaceRoot)
+      const loaded = manager.readSkill(name, context.workspaceRoot ?? undefined)
       if (!loaded || disabled.has(loaded.skill.id)) {
         const available = manager
-          .discover(context.workspaceRoot)
+          .discover(context.workspaceRoot ?? undefined)
           .filter((skill) => !disabled.has(skill.id))
           .map((skill) => skill.name)
         return {

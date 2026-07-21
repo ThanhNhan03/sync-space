@@ -8,6 +8,22 @@ export class WorkspacePathViolationError extends Error {
   }
 }
 
+/**
+ * Hard guard: a workspace-less chat must never reach a workspace-scoped tool. Beyond the
+ * excludeToolNames filter (which only hides tool *definitions* from the model, not execution),
+ * this throws if a null root ever slips through -- also preventing the `path.resolve('')` ->
+ * `process.cwd()` hazard (which would silently target the app's own directory).
+ */
+export function assertWorkspaceConfigured(
+  workspaceRoot: string | null
+): asserts workspaceRoot is string {
+  if (workspaceRoot === null) {
+    throw new WorkspacePathViolationError(
+      'This chat has no workspace configured; workspace-scoped tools are unavailable.'
+    )
+  }
+}
+
 function escapesRoot(root: string, absoluteTarget: string): boolean {
   const rel = relative(root, absoluteTarget)
   return rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)
@@ -62,7 +78,11 @@ async function assertRealPathWithinWorkspace(root: string, lexicalPath: string):
  * point every file/search/terminal tool must go through -- never join paths manually
  * elsewhere.
  */
-export async function resolveWorkspacePath(workspaceRoot: string, targetPath: string): Promise<string> {
+export async function resolveWorkspacePath(
+  workspaceRoot: string | null,
+  targetPath: string
+): Promise<string> {
+  assertWorkspaceConfigured(workspaceRoot)
   if (typeof targetPath !== 'string' || targetPath.length === 0) {
     throw new WorkspacePathViolationError('Path must be a non-empty string')
   }
@@ -89,7 +109,8 @@ export async function resolveWorkspacePath(workspaceRoot: string, targetPath: st
  * Validates that an already-absolute path (e.g. a working directory for a terminal
  * command) sits inside the workspace root. Used where callers deal in absolute paths.
  */
-export function assertWithinWorkspace(workspaceRoot: string, absolutePath: string): void {
+export function assertWithinWorkspace(workspaceRoot: string | null, absolutePath: string): void {
+  assertWorkspaceConfigured(workspaceRoot)
   const root = resolve(workspaceRoot)
   const target = resolve(absolutePath)
   if (target !== root && escapesRoot(root, target)) {

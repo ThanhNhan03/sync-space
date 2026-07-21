@@ -56,7 +56,8 @@ export function createMemoryTools(manager: MemoryManager, isEnabled: () => boole
       const category = (MEMORY_CATEGORIES as string[]).includes(args.category as string)
         ? (args.category as MemoryCategory)
         : 'fact'
-      manager.add({ workspaceRoot: context.workspaceRoot, category, content, source: 'agent' })
+      // Workspace-less chat -> '' (the global memory scope).
+      manager.add({ workspaceRoot: context.workspaceRoot ?? '', category, content, source: 'agent' })
       return { ok: true, content: `Remembered (${category}): ${content}` }
     }
   }
@@ -74,7 +75,7 @@ export function createMemoryTools(manager: MemoryManager, isEnabled: () => boole
       if (!query) {
         return { ok: false, isError: true, content: 'recall requires a non-empty "query" string.' }
       }
-      const matches = selectRelevant(manager.list(context.workspaceRoot), query, RECALL_LIMIT)
+      const matches = selectRelevant(manager.list(context.workspaceRoot ?? undefined), query, RECALL_LIMIT)
       if (matches.length === 0) {
         return { ok: true, content: 'No relevant memories found.' }
       }

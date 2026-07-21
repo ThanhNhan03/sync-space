@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import type { KeyboardEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { DragEvent, KeyboardEvent } from 'react'
 import type { MessageAttachment } from '@shared/types'
 
 interface ChatInputProps {
@@ -9,6 +9,7 @@ interface ChatInputProps {
   onAttach: () => void
   attachments: MessageAttachment[]
   onRemoveAttachment: (id: string) => void
+  onFilesDropped: (files: FileList) => void
   disabled?: boolean
 }
 
@@ -21,9 +22,27 @@ export function ChatInput({
   onAttach,
   attachments,
   onRemoveAttachment,
+  onFilesDropped,
   disabled = false
 }: ChatInputProps): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [dragActive, setDragActive] = useState(false)
+
+  const handleDragOver = (event: DragEvent): void => {
+    event.preventDefault()
+    setDragActive(true)
+  }
+  const handleDragLeave = (event: DragEvent): void => {
+    event.preventDefault()
+    setDragActive(false)
+  }
+  const handleDrop = (event: DragEvent): void => {
+    event.preventDefault()
+    setDragActive(false)
+    if (event.dataTransfer.files.length > 0) {
+      onFilesDropped(event.dataTransfer.files)
+    }
+  }
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -46,7 +65,12 @@ export function ChatInput({
   }
 
   return (
-    <div className="border-t border-border-subtle bg-background px-4 py-3">
+    <div
+      className="border-t border-border-subtle bg-background px-4 py-3"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((attachment) => (
@@ -68,7 +92,11 @@ export function ChatInput({
         </div>
       )}
 
-      <div className="flex items-end gap-2 rounded-4xl border border-border-muted bg-surface p-1.5 shadow-soft">
+      <div
+        className={`flex items-end gap-2 rounded-4xl border bg-surface p-1.5 shadow-soft transition-colors ${
+          dragActive ? 'border-dashed border-accent bg-accent-muted' : 'border-border-muted'
+        }`}
+      >
         <button
           type="button"
           onClick={onAttach}

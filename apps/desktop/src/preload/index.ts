@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 import { IPC, IPC_PUSH } from '../shared/ipc'
 import type { IpcRequestMap, IpcResponseMap } from '../shared/ipc'
@@ -12,13 +12,16 @@ function invoke<K extends keyof IpcRequestMap>(
 }
 
 const api = {
-  listSessions: (workspaceId: string) => invoke(IPC.SESSIONS_LIST, { workspaceId }),
+  listSessions: () => invoke(IPC.SESSIONS_LIST),
 
   createSession: (input: IpcRequestMap[typeof IPC.SESSIONS_CREATE]) => invoke(IPC.SESSIONS_CREATE, input),
 
   renameSession: (sessionId: string, title: string) => invoke(IPC.SESSIONS_RENAME, { sessionId, title }),
 
   deleteSession: (sessionId: string) => invoke(IPC.SESSIONS_DELETE, { sessionId }),
+
+  setSessionWorkspace: (sessionId: string, workspaceId: string | null) =>
+    invoke(IPC.SESSIONS_SET_WORKSPACE, { sessionId, workspaceId }),
 
   getSessionMessages: (sessionId: string) => invoke(IPC.SESSIONS_MESSAGES, { sessionId }),
 
@@ -32,6 +35,12 @@ const api = {
   listWorkspaces: () => invoke(IPC.WORKSPACE_LIST),
 
   selectAttachments: () => invoke(IPC.ATTACHMENT_SELECT),
+
+  // Resolve a dropped File to its absolute path (Electron 33 removed File.path; webUtils is
+  // the supported replacement, available to the preload's isolated world).
+  getPathForFile: (file: File): string => webUtils.getPathForFile(file),
+
+  registerDroppedAttachments: (paths: string[]) => invoke(IPC.ATTACHMENT_REGISTER_DROPPED, { paths }),
 
   getSettings: () => invoke(IPC.SETTINGS_GET),
 

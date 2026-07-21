@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { CompactionStatus, KnowledgeGraphStatus, SessionSummary, Workspace } from '@shared/types'
 
+const OPEN_FOLDER_VALUE = '__open_folder__'
+const NO_WORKSPACE_VALUE = ''
+
 export interface ContextPanelProps {
+  /** The active chat's workspace (or null for a workspace-less chat). */
   workspace: Workspace | null
+  /** Known workspaces, for the per-chat workspace switcher. */
+  workspaces: Workspace[]
   session: SessionSummary | null
   messageCount: number
   /** Whether the panel is expanded. Collapses to zero width (not unmounted) when false. */
   open: boolean
+  onSetSessionWorkspace: (sessionId: string, workspaceId: string | null) => Promise<void> | void
+  onOpenWorkspaceFolder: () => Promise<Workspace | null>
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -35,13 +43,31 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
  * breakpoint -- it collapses to zero width but stays mounted so the width transition animates,
  * matching how the left sidebar collapses.
  */
-export function ContextPanel({ workspace, session, messageCount, open }: ContextPanelProps): JSX.Element {
+export function ContextPanel({
+  workspace,
+  workspaces,
+  session,
+  messageCount,
+  open,
+  onSetSessionWorkspace,
+  onOpenWorkspaceFolder
+}: ContextPanelProps): JSX.Element {
   const sessionId = session?.id
   const workspaceRoot = workspace?.rootPath
   const [compactionStatus, setCompactionStatus] = useState<CompactionStatus | null>(null)
   const [isCompactingNow, setIsCompactingNow] = useState(false)
   const [graphStatus, setGraphStatus] = useState<KnowledgeGraphStatus | null>(null)
   const [isRebuildingGraph, setIsRebuildingGraph] = useState(false)
+
+  const handleWorkspaceChange = async (value: string): Promise<void> => {
+    if (!sessionId) return
+    if (value === OPEN_FOLDER_VALUE) {
+      const opened = await onOpenWorkspaceFolder()
+      if (opened) await onSetSessionWorkspace(sessionId, opened.id)
+      return
+    }
+    await onSetSessionWorkspace(sessionId, value === NO_WORKSPACE_VALUE ? null : value)
+  }
 
   const refreshCompactionStatus = useCallback(async () => {
     if (!sessionId) {
@@ -104,7 +130,25 @@ export function ContextPanel({ workspace, session, messageCount, open }: Context
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
             <div className="rounded-2xl border border-border-subtle bg-surface p-3 shadow-soft">
               <div className="space-y-3">
-                <Row label="Workspace" value={workspace?.name ?? '—'} />
+                <div className="space-y-1">
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+                    Workspace
+                  </div>
+                  <select
+                    value={workspace?.id ?? NO_WORKSPACE_VALUE}
+                    onChange={(e) => void handleWorkspaceChange(e.target.value)}
+                    disabled={!sessionId}
+                    className="w-full cursor-pointer rounded-md bg-surface-muted px-2 py-1.5 text-sm text-text-secondary outline-none ring-1 ring-transparent transition-colors hover:text-text-primary focus:ring-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value={NO_WORKSPACE_VALUE}>No workspace</option>
+                    {workspaces.map((ws) => (
+                      <option key={ws.id} value={ws.id}>
+                        {ws.name}
+                      </option>
+                    ))}
+                    <option value={OPEN_FOLDER_VALUE}>Open folder…</option>
+                  </select>
+                </div>
                 {workspace && <Row label="Path" value={workspace.rootPath} mono />}
               </div>
             </div>
@@ -169,8 +213,9 @@ export function ContextPanel({ workspace, session, messageCount, open }: Context
             </div>
 
             <p className="px-1 text-xs leading-relaxed text-text-muted">
-              The agent can read and edit files, run terminal commands, search, use git, and more —
-              scoped to this workspace. Manage tools, skills, agents, and permissions in Settings.
+              {workspace
+                ? 'The agent can read and edit files, run terminal commands, search, and use git — scoped to this workspace. Manage tools, skills, agents, and permissions in Settings.'
+                : 'This chat has no workspace, so file, search, git, terminal, and knowledge-graph tools are off. Attach a workspace above to enable them.'}
             </p>
           </div>
         </>

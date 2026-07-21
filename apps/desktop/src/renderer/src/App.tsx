@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChatInput, MessageList } from './components/Chat'
 import { PermissionPrompt } from './components/Chat/PermissionPrompt'
-import { SessionList, WorkspaceBadge } from './components/Sidebar'
+import { SessionList } from './components/Sidebar'
 import { WorkspaceExplorer } from './components/Explorer'
 import { SettingsPanel } from './components/Settings'
 import { Titlebar } from './components/Titlebar'
@@ -24,6 +24,19 @@ export default function App(): JSX.Element {
     document.documentElement.classList.toggle('light', s.settings?.theme === 'light')
   }, [s.settings?.theme])
 
+  // Swallow file drops that land outside a designated drop zone, so a stray drop can never make
+  // the window navigate to / open the dropped file (the component drop zones preventDefault
+  // their own drops first; this is the catch-all for everywhere else).
+  useEffect(() => {
+    const prevent = (event: globalThis.DragEvent): void => event.preventDefault()
+    window.addEventListener('dragover', prevent)
+    window.addEventListener('drop', prevent)
+    return () => {
+      window.removeEventListener('dragover', prevent)
+      window.removeEventListener('drop', prevent)
+    }
+  }, [])
+
   const activeSession = s.sessions.find((session) => session.id === s.activeSessionId) ?? null
   const hasProviderKey = Boolean(
     s.settings && s.settings.providers[s.settings.activeProviderId]?.apiKey
@@ -45,8 +58,6 @@ export default function App(): JSX.Element {
         >
           {!sidebarCollapsed && (
             <>
-              <WorkspaceBadge workspace={s.workspace} onChangeWorkspace={s.onSelectWorkspace} />
-
               <div className="flex shrink-0 gap-1 rounded-lg bg-surface-muted p-1">
                 {(['chats', 'files'] as const).map((tab) => (
                   <button
@@ -67,6 +78,7 @@ export default function App(): JSX.Element {
               {sidebarTab === 'chats' ? (
                 <SessionList
                   sessions={s.sessions}
+                  workspaces={s.workspaces}
                   activeSessionId={s.activeSessionId}
                   onSelect={s.onSelectSession}
                   onCreate={s.onCreateSession}
@@ -74,7 +86,7 @@ export default function App(): JSX.Element {
                   onDelete={s.onDeleteSession}
                 />
               ) : (
-                <WorkspaceExplorer workspaceRoot={s.workspace?.rootPath ?? null} />
+                <WorkspaceExplorer workspaceRoot={s.activeWorkspace?.rootPath ?? null} />
               )}
             </>
           )}
@@ -93,11 +105,12 @@ export default function App(): JSX.Element {
 
           {!s.activeSessionId ? (
             <WelcomeView
-              workspace={s.workspace}
-              onSelectWorkspace={s.onSelectWorkspace}
+              workspaces={s.workspaces}
+              onOpenWorkspaceFolder={s.onOpenWorkspaceFolder}
               attachments={s.attachments}
               onAttach={s.onAttach}
               onRemoveAttachment={s.onRemoveAttachment}
+              onFilesDropped={s.onFilesDropped}
               onStart={s.onStartSession}
               hasProviderKey={hasProviderKey}
               onOpenSettings={() => setSettingsOpen(true)}
@@ -171,6 +184,7 @@ export default function App(): JSX.Element {
                 onAttach={s.onAttach}
                 attachments={s.attachments}
                 onRemoveAttachment={s.onRemoveAttachment}
+                onFilesDropped={s.onFilesDropped}
                 disabled={!s.activeSessionId || s.isSending}
               />
             </>
@@ -180,10 +194,13 @@ export default function App(): JSX.Element {
         {/* Context panel (only in a session); user-toggleable via the button above the chat. */}
         {s.activeSessionId && (
           <ContextPanel
-            workspace={s.workspace}
+            workspace={s.activeWorkspace}
+            workspaces={s.workspaces}
             session={activeSession}
             messageCount={s.messages.length}
             open={contextPanelOpen}
+            onSetSessionWorkspace={s.onSetSessionWorkspace}
+            onOpenWorkspaceFolder={s.onOpenWorkspaceFolder}
           />
         )}
       </div>
@@ -191,7 +208,7 @@ export default function App(): JSX.Element {
       {settingsOpen && s.settings && (
         <SettingsPanel
           settings={s.settings}
-          workspaceRoot={s.workspace?.rootPath}
+          workspaceRoot={s.activeWorkspace?.rootPath}
           onChange={s.onUpdateSettings}
           onClose={() => setSettingsOpen(false)}
         />

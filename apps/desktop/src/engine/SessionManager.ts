@@ -6,7 +6,7 @@ import type {
 } from '@database/repositories'
 
 export interface CreateSessionInput {
-  workspaceId: string
+  workspaceId: string | null
   providerId: ProviderId
   model: string
   title?: string
@@ -23,12 +23,16 @@ export class SessionManager {
     private readonly workspaces: WorkspacesRepository
   ) {}
 
-  listSessions(workspaceId: string): SessionSummary[] {
-    return this.sessions.listByWorkspace(workspaceId)
+  listSessions(): SessionSummary[] {
+    return this.sessions.listAll()
   }
 
   getSession(id: string): SessionSummary | undefined {
     return this.sessions.getById(id)
+  }
+
+  setSessionWorkspace(id: string, workspaceId: string | null): SessionSummary {
+    return this.sessions.setWorkspace(id, workspaceId)
   }
 
   createSession(input: CreateSessionInput): SessionSummary {

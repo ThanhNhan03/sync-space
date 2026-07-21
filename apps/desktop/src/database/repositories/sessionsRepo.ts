@@ -7,7 +7,7 @@ import type { ProviderId, SessionSummary } from '@shared/types'
 interface SessionRow {
   id: string
   title: string
-  workspace_id: string
+  workspace_id: string | null
   provider_id: string
   model: string
   created_at: number
@@ -15,7 +15,7 @@ interface SessionRow {
 }
 
 interface CreateSessionInput {
-  workspaceId: string
+  workspaceId: string | null
   providerId: ProviderId
   model: string
   title: string
@@ -62,15 +62,30 @@ export class SessionsRepository {
     }
   }
 
-  listByWorkspace(workspaceId: string): SessionSummary[] {
+  listAll(): SessionSummary[] {
     const rows = this.db
       .prepare(
         `SELECT id, title, workspace_id, provider_id, model, created_at, updated_at
-         FROM sessions WHERE workspace_id = ? ORDER BY updated_at DESC`
+         FROM sessions ORDER BY updated_at DESC`
       )
-      .all(workspaceId) as SessionRow[]
+      .all() as SessionRow[]
 
     return rows.map(toSessionSummary)
+  }
+
+  setWorkspace(id: string, workspaceId: string | null): SessionSummary {
+    const existing = this.getById(id)
+    if (!existing) {
+      throw new Error(`Session not found: ${id}`)
+    }
+
+    const updatedAt = Date.now()
+
+    this.db
+      .prepare('UPDATE sessions SET workspace_id = ?, updated_at = ? WHERE id = ?')
+      .run(workspaceId, updatedAt, id)
+
+    return { ...existing, workspaceId, updatedAt }
   }
 
   rename(id: string, title: string): SessionSummary {

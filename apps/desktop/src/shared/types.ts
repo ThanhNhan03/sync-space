@@ -47,7 +47,8 @@ export interface Workspace {
 export interface SessionSummary {
   id: string
   title: string
-  workspaceId: string
+  /** The workspace this chat is scoped to, or null for a workspace-less (general) chat. */
+  workspaceId: string | null
   providerId: ProviderId
   model: string
   createdAt: number

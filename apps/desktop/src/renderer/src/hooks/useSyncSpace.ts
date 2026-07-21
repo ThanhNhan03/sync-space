@@ -20,7 +20,6 @@ function randomId(): string {
 export function useSyncSpace() {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [workspace, setWorkspace] = useState<Workspace | null>(null)
 
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -50,46 +49,24 @@ export function useSyncSpace() {
     activeSessionIdRef.current = activeSessionId
   }, [activeSessionId])
 
-  // Initial load: settings + workspaces, then resolve which workspace is active.
+  // Initial load: settings, known workspaces, and every chat (unified list, not workspace-filtered).
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const [loadedSettings, loadedWorkspaces] = await Promise.all([
+      const [loadedSettings, loadedWorkspaces, loadedSessions] = await Promise.all([
         window.syncspace.getSettings(),
-        window.syncspace.listWorkspaces()
+        window.syncspace.listWorkspaces(),
+        window.syncspace.listSessions()
       ])
       if (cancelled) return
       setSettings(loadedSettings)
       setWorkspaces(loadedWorkspaces)
-      const preferred =
-        loadedWorkspaces.find((w) => w.id === loadedSettings.activeWorkspaceId) ??
-        loadedWorkspaces[0] ??
-        null
-      setWorkspace(preferred)
+      setSessions(loadedSessions)
     })()
     return () => {
       cancelled = true
     }
   }, [])
-
-  // Load sessions whenever the active workspace changes.
-  useEffect(() => {
-    if (!workspace) {
-      setSessions([])
-      setActiveSessionId(null)
-      return
-    }
-    let cancelled = false
-    void (async () => {
-      const loaded = await window.syncspace.listSessions(workspace.id)
-      if (cancelled) return
-      setSessions(loaded)
-      setActiveSessionId((current) => (current && loaded.some((s) => s.id === current) ? current : loaded[0]?.id ?? null))
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [workspace])
 
   // Load message history whenever the active session changes.
   useEffect(() => {
@@ -217,25 +194,30 @@ export function useSyncSpace() {
     return unsubscribe
   }, [])
 
-  const refreshSessions = useCallback(async (workspaceId: string) => {
-    const loaded = await window.syncspace.listSessions(workspaceId)
+  const refreshSessions = useCallback(async () => {
+    const loaded = await window.syncspace.listSessions()
     setSessions(loaded)
     return loaded
   }, [])
 
-  const onSelectWorkspace = useCallback(async () => {
+  // Open the native folder picker, register the chosen folder as a workspace, and return it so
+  // the caller can attach it to a chat. Returns null if the user cancels.
+  const onOpenWorkspaceFolder = useCallback(async (): Promise<Workspace | null> => {
     const selected = await window.syncspace.selectWorkspace()
-    if (!selected) return
+    if (!selected) return null
     setWorkspaces((prev) => (prev.some((w) => w.id === selected.id) ? prev : [selected, ...prev]))
-    setWorkspace(selected)
-    setActiveSessionId(null)
-    setSettings((prev) => {
-      if (!prev) return prev
-      const next = { ...prev, activeWorkspaceId: selected.id }
-      void window.syncspace.updateSettings(next)
-      return next
-    })
+    return selected
   }, [])
+
+  // Attach/detach/change a chat's workspace after creation; refresh so the list tag + the
+  // derived active workspace update.
+  const onSetSessionWorkspace = useCallback(
+    async (sessionId: string, workspaceId: string | null) => {
+      await window.syncspace.setSessionWorkspace(sessionId, workspaceId)
+      await refreshSessions()
+    },
+    [refreshSessions]
+  )
 
   const onUpdateSettings = useCallback(async (next: AppSettings) => {
     const persisted = await window.syncspace.updateSettings(next)
@@ -243,34 +225,35 @@ export function useSyncSpace() {
   }, [])
 
   const onCreateSession = useCallback(async () => {
-    if (!workspace || !settings) return
+    if (!settings) return
     const providerId = settings.activeProviderId
     const model = settings.providers[providerId]?.model ?? ''
+    // New chats start workspace-less; attach a workspace later from the context panel.
     const created = await window.syncspace.createSession({
-      workspaceId: workspace.id,
+      workspaceId: null,
       providerId,
       model,
       title: 'New session'
     })
-    await refreshSessions(workspace.id)
+    await refreshSessions()
     setActiveSessionId(created.id)
-  }, [workspace, settings, refreshSessions])
+  }, [settings, refreshSessions])
 
   const onRenameSession = useCallback(
     async (sessionId: string, title: string) => {
       await window.syncspace.renameSession(sessionId, title)
-      if (workspace) await refreshSessions(workspace.id)
+      await refreshSessions()
     },
-    [workspace, refreshSessions]
+    [refreshSessions]
   )
 
   const onDeleteSession = useCallback(
     async (sessionId: string) => {
       await window.syncspace.deleteSession(sessionId)
-      if (workspace) await refreshSessions(workspace.id)
+      await refreshSessions()
       setActiveSessionId((current) => (current === sessionId ? null : current))
     },
-    [workspace, refreshSessions]
+    [refreshSessions]
   )
 
   const onAttach = useCallback(async () => {
@@ -281,6 +264,21 @@ export function useSyncSpace() {
 
   const onRemoveAttachment = useCallback((id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id))
+  }, [])
+
+  // Attach files dropped onto the composer. Paths are resolved via the preload's webUtils
+  // bridge, then registered (and existence/directory-checked) in the main process before the
+  // send allowlist will honor them.
+  const onFilesDropped = useCallback(async (files: FileList | File[]) => {
+    const paths = Array.from(files)
+      .map((file) => window.syncspace.getPathForFile(file))
+      .filter((path) => path.length > 0)
+    if (paths.length === 0) return
+    const { attachments: added, skipped } = await window.syncspace.registerDroppedAttachments(paths)
+    if (added.length > 0) setAttachments((prev) => [...prev, ...added])
+    if (skipped.length > 0) {
+      setError(`Skipped ${skipped.length} item(s): folders and unreadable paths can't be attached.`)
+    }
   }, [])
 
   const onSend = useCallback(() => {
@@ -313,9 +311,10 @@ export function useSyncSpace() {
   }, [activeSessionId])
 
   // Start a brand-new session from the welcome screen and immediately send the first message.
+  // workspaceId is the (optional) workspace the user chose for this chat; null = no workspace.
   const onStartSession = useCallback(
-    async (content: string) => {
-      if (!workspace || !settings) return
+    async (content: string, workspaceId: string | null) => {
+      if (!settings) return
       const text = content.trim()
       const attached = attachments
       if (text.length === 0 && attached.length === 0) return
@@ -323,12 +322,12 @@ export function useSyncSpace() {
       const providerId = settings.activeProviderId
       const model = settings.providers[providerId]?.model ?? ''
       const created = await window.syncspace.createSession({
-        workspaceId: workspace.id,
+        workspaceId,
         providerId,
         model,
         title: text.slice(0, 48) || 'New session'
       })
-      await refreshSessions(workspace.id)
+      await refreshSessions()
       setActiveSessionId(created.id)
 
       const optimistic: ChatMessage = {
@@ -347,7 +346,7 @@ export function useSyncSpace() {
       setAttachments([])
       void window.syncspace.sendMessage(created.id, text, attachmentPaths)
     },
-    [workspace, settings, attachments, refreshSessions]
+    [settings, attachments, refreshSessions]
   )
 
   const onRespondPermission = useCallback(
@@ -358,12 +357,18 @@ export function useSyncSpace() {
     []
   )
 
+  // A chat's workspace is a per-session attribute now; the "active workspace" is whatever the
+  // currently-open chat is bound to (or null for a workspace-less chat).
+  const activeSession = sessions.find((sess) => sess.id === activeSessionId) ?? null
+  const activeWorkspace = workspaces.find((w) => w.id === activeSession?.workspaceId) ?? null
+
   return {
     settings,
     onUpdateSettings,
     workspaces,
-    workspace,
-    onSelectWorkspace,
+    activeWorkspace,
+    onOpenWorkspaceFolder,
+    onSetSessionWorkspace,
     sessions,
     activeSessionId,
     onSelectSession: setActiveSessionId,
@@ -380,6 +385,7 @@ export function useSyncSpace() {
     attachments,
     onAttach,
     onRemoveAttachment,
+    onFilesDropped,
     onSend,
     onStartSession,
     onCancel,

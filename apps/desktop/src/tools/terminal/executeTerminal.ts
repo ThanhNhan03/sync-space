@@ -101,7 +101,8 @@ export const executeTerminalTool: Tool = {
       throw error
     }
 
-    const relativeCwd = toRelativeCwd(context.workspaceRoot, absoluteCwd)
+    // Non-null: resolveWorkspacePath above already threw (and returned) if the root were null.
+    const relativeCwd = toRelativeCwd(context.workspaceRoot!, absoluteCwd)
     const { stdout, stderr, error } = await runCommand(command, absoluteCwd, timeoutMs)
 
     if (!error) {

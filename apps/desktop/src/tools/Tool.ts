@@ -32,8 +32,9 @@ export interface SubagentResult {
 }
 
 export interface ToolContext {
-  /** Absolute path to the workspace folder this session is bound to. */
-  workspaceRoot: string
+  /** Absolute path to the workspace folder this session is bound to, or null for a
+   *  workspace-less chat (workspace-scoped tools are hidden from the model in that case). */
+  workspaceRoot: string | null
   /**
    * Runs a focused child agent to completion and returns its final answer. Present only on
    * top-level runs -- it is deliberately omitted from a child's context so subagents cannot

@@ -1,4 +1,5 @@
 import type { Tool, ToolContext, ToolExecutionResult } from '@tools/Tool'
+import { assertWorkspaceConfigured } from '@tools/security/workspacePath'
 
 import type { GraphData, GraphNode, GraphNodeKind } from './graphTypes'
 import type { KnowledgeGraphManager } from './KnowledgeGraphManager'
@@ -93,6 +94,7 @@ export function createKnowledgeGraphTools(manager: KnowledgeGraphManager): Tool[
     },
     async execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolExecutionResult> {
       try {
+        assertWorkspaceConfigured(context.workspaceRoot)
         const { query, kind } = parseSearchArgs(args)
         const graph = await manager.ensureBuilt(context.workspaceRoot)
         const needle = query.toLowerCase()
@@ -136,6 +138,7 @@ export function createKnowledgeGraphTools(manager: KnowledgeGraphManager): Tool[
     },
     async execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolExecutionResult> {
       try {
+        assertWorkspaceConfigured(context.workspaceRoot)
         const { nodeId } = parseExpandArgs(args)
         const graph = await manager.ensureBuilt(context.workspaceRoot)
         const node = graph.nodesById.get(nodeId)
